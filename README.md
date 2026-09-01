@@ -41,6 +41,13 @@ Puis ouvrir http://127.0.0.1:5050 dans le navigateur.
 3. Les prochaines analyses comparent automatiquement le nouveau fichier aux
    morceaux déjà présents dans `library/` et affichent les plus proches.
 
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## Déploiement (Render)
 
 L'appli tourne aussi en ligne, sur un vrai hébergeur (pas en local). Render a
