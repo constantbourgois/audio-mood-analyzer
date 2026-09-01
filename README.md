@@ -77,7 +77,7 @@ ce genre de contrainte.
 
 Sans `render.yaml` (déploiement manuel) : Build Command
 `pip install -r requirements.txt`, Start Command
-`gunicorn -c gunicorn.conf.py -w 2 --timeout 120 -b 0.0.0.0:$PORT app:app`,
+`gunicorn -c gunicorn.conf.py -w 2 --timeout 300 -b 0.0.0.0:$PORT app:app`,
 variable d'environnement `SECRET_KEY` à définir toi-même (une chaîne
 aléatoire quelconque).
 

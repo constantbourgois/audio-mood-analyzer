@@ -20,6 +20,34 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 os.makedirs(LIBRARY_DIR, exist_ok=True)
 
 
+def _warmup_numba():
+    """Force librosa's numba-JIT'd functions (chroma, mfcc, beat tracking,
+    hpss, pyin, and librosa.load's own lazy-loaded guvectorize) to compile
+    now, at process boot, instead of on a live request. On a slow/throttled
+    CPU that first-ever compile can itself take longer than a request
+    timeout — this is what caused production WORKER TIMEOUT crashes."""
+    import tempfile
+
+    import numpy as np
+    import soundfile as sf
+
+    from analysis import SAMPLE_RATE, analyze_loaded
+
+    try:
+        t = np.linspace(0, 2.0, int(SAMPLE_RATE * 2.0), endpoint=False)
+        y = (0.2 * np.sin(2 * np.pi * 220.0 * t)).astype(np.float32)
+        with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
+            sf.write(tmp.name, y, SAMPLE_RATE)
+            warm_y, warm_sr = load_audio(tmp.name)
+        analyze_loaded(warm_y, warm_sr, "warmup.wav")
+        build_song_map(warm_y, warm_sr)
+    except Exception:
+        pass
+
+
+_warmup_numba()
+
+
 @app.template_filter("mmss")
 def mmss_filter(seconds):
     if seconds is None:
