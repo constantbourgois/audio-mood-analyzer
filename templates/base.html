@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Analyseur audio{% endblock %}</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f5f2;
+      --card: #ffffff;
+      --text: #1f1b16;
+      --muted: #6b625a;
+      --accent: #b5652f;
+      --border: #e5dfd6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #171310;
+        --card: #221d18;
+        --text: #f2ece3;
+        --muted: #b3a89b;
+        --accent: #e08a4f;
+        --border: #382f27;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      padding: 2.5rem 1rem;
+    }
+    main {
+      width: 100%;
+      max-width: 640px;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      margin-top: 0;
+      margin-bottom: 1.75rem;
+      font-size: 0.95rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .flash {
+      background: #f4c7b8;
+      color: #5c2a10;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    label { display: block; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.9rem; }
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+    .checkbox-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; font-size: 0.9rem; }
+    .checkbox-row label { margin: 0; font-weight: 400; }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.7rem 1.4rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.92; }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin: 1rem 0; }
+    .metric { background: var(--bg); border-radius: 8px; padding: 0.8rem 1rem; }
+    .metric .label { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    .metric .value { font-size: 1.3rem; font-weight: 700; margin-top: 0.15rem; }
+    .mood-banner {
+      background: var(--accent);
+      color: white;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 1rem 0;
+    }
+    ul.similar { list-style: none; padding: 0; margin: 0; }
+    ul.similar li {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    ul.similar li:last-child { border-bottom: none; }
+    .muted { color: var(--muted); font-size: 0.85rem; }
+    a.back { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    .note {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 1.75rem;
+      line-height: 1.5;
+    }
+    .song-map { margin: 0.75rem 0 0.5rem; }
+    .grid-row { margin-bottom: 0.3rem; }
+    .grid-svg, .track-svg { width: 100%; height: auto; display: block; }
+    .measure-line { stroke: var(--border); stroke-width: 1; }
+    .measure-label { fill: var(--muted); font-size: 9px; }
+    .track-row { margin-bottom: 0.9rem; }
+    .track-label {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      font-size: 0.82rem;
+      margin-bottom: 0.3rem;
+    }
+    .track-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+      align-self: center;
+    }
+    .track-dot-percussions { background: #c0392b; }
+    .track-dot-basses { background: #2f6f4f; }
+    .track-dot-accords { background: #3d6da8; }
+    .track-dot-voix { background: #b5652f; }
+    .track-entry { color: var(--muted); font-size: 0.78rem; }
+    .track-plot {
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--bg);
+      border: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="flash">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>{{ result.filename }}</h1>
+  <p class="subtitle">{{ result.duration_sec }} s
+    {% if added_to_library %} · ajouté à la bibliothèque ({{ library_count }} morceau(x)){% endif %}
+  </p>
+
+  <div class="card">
+    <div class="mood-banner">{{ result.mood_label }}</div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">Tonalité</div>
+        <div class="value">{{ result.key }} {{ result.mode }}</div>
+      </div>
+      <div class="metric">
+        <div class="label">Tempo</div>
+        <div class="value">{{ result.tempo_bpm }} BPM</div>
+      </div>
+      <div class="metric">
+        <div class="label">Confiance tonalité</div>
+        <div class="value">{{ (result.key_confidence * 100) | round | int }}%</div>
+      </div>
+      <div class="metric">
+        <div class="label">Valence / Énergie</div>
+        <div class="value">{{ result.valence }} / {{ result.arousal }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size: 1.05rem; margin-top:0;">Carte de la chanson</h2>
+    <p class="muted">
+      {{ song_map.beats_per_measure }} temps/mesure (estimé) · {{ song_map.measure_count }} mesures ·
+      {{ song_map.duration_sec | mmss }} · {{ song_map.tempo_bpm }} BPM
+    </p>
+
+    <div class="song-map">
+      <div class="grid-row">{{ grid_svg | safe }}</div>
+      {% for track, svg in track_svgs %}
+        <div class="track-row">
+          <div class="track-label">
+            <span class="track-dot track-dot-{{ track.key }}"></span>
+            <strong>{{ track.label }}</strong>
+            {% if track.entry_measure %}
+              <span class="track-entry">entre à la mesure {{ track.entry_measure }} ({{ track.entry_time | mmss }})</span>
+            {% else %}
+              <span class="track-entry">présence non détectée distinctement</span>
+            {% endif %}
+          </div>
+          <div class="track-plot">{{ svg | safe }}</div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <p class="note" style="margin-top: 0.5rem;">
+      Approche légère, sans séparation de sources : ces pistes sont des indices
+      de texture (bandes de fréquence + composantes harmonique/percussive), pas
+      une identification d'instrument précise. Une mélodie jouée par un
+      instrument solo (guitare, etc.) peut être détectée comme "voix".
+    </p>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size: 1.05rem; margin-top:0;">Morceaux similaires (bibliothèque locale)</h2>
+    {% if similar %}
+      <ul class="similar">
+        {% for s in similar %}
+          <li><span>{{ s.filename }}</span><span>{{ (s.similarity * 100) | round | int }}%</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">
+        Aucun autre morceau dans ta bibliothèque pour l'instant. Coche "Ajouter à ma
+        bibliothèque" sur d'autres fichiers pour pouvoir les comparer entre eux.
+      </p>
+    {% endif %}
+  </div>
+
+  <a class="back" href="{{ url_for('index') }}">&larr; Analyser un autre fichier</a>
+{% endblock %}

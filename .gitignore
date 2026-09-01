@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+library/*
+!library/.gitkeep
+library_features.json
