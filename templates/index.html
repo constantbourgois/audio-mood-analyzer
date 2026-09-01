@@ -6,7 +6,7 @@
   <div class="card">
     <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
       <label for="audio_file">Fichier audio (.wav, .flac, .ogg, .mp3, .m4a)</label>
-      <input type="file" id="audio_file" name="audio_file" accept=".wav,.flac,.ogg,.mp3,.m4a" required>
+      <input type="file" id="audio_file" name="audio_file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" required>
 
       <div class="checkbox-row">
         <input type="checkbox" id="add_to_library" name="add_to_library">

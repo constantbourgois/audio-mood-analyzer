@@ -33,6 +33,12 @@ def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+@app.errorhandler(413)
+def file_too_large(_exc):
+    flash(f"Fichier trop volumineux (max {MAX_CONTENT_LENGTH // (1024 * 1024)} Mo).")
+    return redirect(url_for("index"))
+
+
 @app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
