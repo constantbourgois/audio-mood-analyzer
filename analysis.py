@@ -75,6 +75,10 @@ def estimate_key(chroma_mean: np.ndarray) -> tuple[str, str, float]:
             best_score, best_pitch_class, best_mode = major_corr, i, "majeur"
         if minor_corr > best_score:
             best_score, best_pitch_class, best_mode = minor_corr, i, "mineur"
+    if not np.isfinite(best_score):
+        # Silence (or any flat chroma) makes every correlation NaN, leaving the
+        # score at -inf: report no confidence rather than an unformattable one.
+        best_score = 0.0
     return NOTE_NAMES[best_pitch_class], best_mode, float(best_score)
 
 

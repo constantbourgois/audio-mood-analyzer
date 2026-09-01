@@ -26,12 +26,12 @@ def _warmup_numba():
     now, at process boot, instead of on a live request. On a slow/throttled
     CPU that first-ever compile can itself take longer than a request
     timeout — this is what caused production WORKER TIMEOUT crashes."""
-    import tempfile
+    import sys
 
     import numpy as np
     import soundfile as sf
 
-    from analysis import SAMPLE_RATE, analyze_loaded
+    from analysis import SAMPLE_RATE
 
     try:
         t = np.linspace(0, 2.0, int(SAMPLE_RATE * 2.0), endpoint=False)
@@ -41,8 +41,11 @@ def _warmup_numba():
             warm_y, warm_sr = load_audio(tmp.name)
         analyze_loaded(warm_y, warm_sr, "warmup.wav")
         build_song_map(warm_y, warm_sr)
-    except Exception:
-        pass
+    except Exception as exc:
+        # Never block startup on the warm-up, but say so loudly: silence here
+        # means compilation lands on the first real request instead, which is
+        # what the timeout crashes looked like.
+        print(f"[warmup] skipped, JIT will compile on first request: {exc!r}", file=sys.stderr)
 
 
 _warmup_numba()

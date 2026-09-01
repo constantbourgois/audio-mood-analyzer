@@ -21,6 +21,16 @@ def test_estimate_key_returns_valid_note_and_mode(sample_audio):
     assert -1.0 <= confidence <= 1.0
 
 
+def test_estimate_key_on_flat_chroma_reports_finite_confidence():
+    """Silence makes every correlation NaN; the confidence must still be a
+    number the result template can format."""
+    key, mode, confidence = estimate_key(np.zeros(12))
+    assert key in NOTE_NAMES
+    assert mode in ("majeur", "mineur")
+    assert np.isfinite(confidence)
+    assert int(confidence * 100) == 0
+
+
 @pytest.mark.parametrize(
     "mode,tempo,rms,centroid,expect_high_valence",
     [
