@@ -5,8 +5,9 @@ from flask import Flask, render_template, request, flash, redirect, url_for
 from werkzeug.utils import secure_filename
 
 from analysis import load_audio, analyze_loaded, find_similar
+from chords import estimate_chords, summarize_chords
 from song_map import build_song_map
-from viz import measure_grid_svg, track_svg
+from viz import chord_ribbon_svg, measure_grid_svg, track_svg
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LIBRARY_DIR = os.path.join(BASE_DIR, "library")
@@ -40,7 +41,8 @@ def _warmup_numba():
             sf.write(tmp.name, y, SAMPLE_RATE)
             warm_y, warm_sr = load_audio(tmp.name)
         analyze_loaded(warm_y, warm_sr, "warmup.wav")
-        build_song_map(warm_y, warm_sr)
+        warm_map = build_song_map(warm_y, warm_sr)
+        estimate_chords(warm_y, warm_sr, warm_map.beat_times, warm_map.measure_times)
     except Exception as exc:
         # Never block startup on the warm-up, but say so loudly: silence here
         # means compilation lands on the first real request instead, which is
@@ -105,6 +107,7 @@ def analyze():
         y, sr = load_audio(tmp_path)
         result, vec = analyze_loaded(y, sr, filename)
         song_map = build_song_map(y, sr)
+        chords = estimate_chords(y, sr, song_map.beat_times, song_map.measure_times)
     except Exception as exc:
         flash(f"Impossible d'analyser ce fichier : {exc}")
         if cleanup and os.path.exists(tmp_path):
@@ -118,6 +121,7 @@ def analyze():
 
     grid_svg = measure_grid_svg(song_map.measure_times, song_map.duration_sec, song_map.beats_per_measure)
     track_svgs = [(t, track_svg(t, song_map.duration_sec, song_map.measure_times)) for t in song_map.tracks]
+    chord_svg = chord_ribbon_svg(chords, song_map.duration_sec, song_map.measure_times)
 
     return render_template(
         "result.html",
@@ -131,6 +135,9 @@ def analyze():
         song_map=song_map,
         grid_svg=grid_svg,
         track_svgs=track_svgs,
+        chords=chords,
+        chord_svg=chord_svg,
+        top_chords=summarize_chords(chords),
     )
 
 

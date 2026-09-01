@@ -10,14 +10,16 @@ from __future__ import annotations
 
 VIEW_WIDTH = 1000
 TRACK_HEIGHT = 60
-GRID_HEIGHT = 26
+GRID_HEIGHT = 32
+CHORD_HEIGHT = 40
 
-TRACK_COLORS = {
-    "percussions": "#c0392b",
-    "basses": "#2f6f4f",
-    "accords": "#3d6da8",
-    "voix": "#b5652f",
-}
+# En dessous de cette largeur (unités du viewBox), l'étiquette ne tient pas
+# dans le bloc : mieux vaut le laisser nu que d'écrire par-dessus le voisin.
+CHORD_LABEL_MIN_WIDTH = 48
+
+# Les couleurs vivent dans la feuille de style (classes CSS), pas ici : le
+# SVG est inline dans la page, donc une classe suffit, et la palette reste
+# définie à un seul endroit avec le reste du thème.
 
 
 def _x(t: float, duration: float) -> float:
@@ -42,8 +44,41 @@ def measure_grid_svg(measure_times: list, duration: float, beats_per_measure: in
     )
 
 
+def chord_ribbon_svg(chords: list, duration: float, measure_times: list) -> str:
+    """Bande d'accords sur la même échelle de temps que la grille et les
+    pistes, pour lire d'un coup d'œil l'harmonie sous l'entrée des pistes."""
+    h = CHORD_HEIGHT
+    parts = []
+
+    for t in measure_times:
+        x = _x(t, duration)
+        parts.append(f'<line x1="{x:.1f}" y1="0" x2="{x:.1f}" y2="{h}" class="measure-line" />')
+
+    for chord in chords:
+        x1 = _x(chord.start_sec, duration)
+        x2 = _x(chord.end_sec, duration)
+        width = max(0.0, x2 - x1)
+        if width <= 0:
+            continue
+        quality = "minor" if chord.label.endswith("m") else "major"
+        parts.append(
+            f'<rect x="{x1:.1f}" y="2" width="{width:.1f}" height="{h - 4}" rx="2" '
+            f'class="chord-block chord-block-{quality}" />'
+        )
+        if width >= CHORD_LABEL_MIN_WIDTH:
+            parts.append(
+                f'<text x="{(x1 + x2) / 2:.1f}" y="{h / 2 + 4:.1f}" text-anchor="middle" '
+                f'class="chord-label">{chord.label}</text>'
+            )
+
+    body = "".join(parts)
+    return (
+        f'<svg viewBox="0 0 {VIEW_WIDTH} {h}" preserveAspectRatio="none" '
+        f'class="chord-svg" role="img" aria-label="Suite d\'accords estimée, {len(chords)} segments">{body}</svg>'
+    )
+
+
 def track_svg(track, duration: float, measure_times: list) -> str:
-    color = TRACK_COLORS.get(track.key, "#888888")
     h = TRACK_HEIGHT
     margin = 4
 
@@ -61,11 +96,14 @@ def track_svg(track, duration: float, measure_times: list) -> str:
         first_x = _x(track.times[0], duration)
         last_x = _x(track.times[-1], duration)
         polygon_points = f"{first_x:.1f},{h} " + " ".join(points) + f" {last_x:.1f},{h}"
-        parts.append(f'<polygon points="{polygon_points}" fill="{color}" fill-opacity="0.35" stroke="{color}" stroke-width="1.5" />')
+        parts.append(f'<polygon points="{polygon_points}" class="track-area track-area-{track.key}" />')
 
     if track.entry_time is not None:
         ex = _x(track.entry_time, duration)
-        parts.append(f'<line x1="{ex:.1f}" y1="0" x2="{ex:.1f}" y2="{h}" stroke="{color}" stroke-width="2" stroke-dasharray="4 2" />')
+        parts.append(
+            f'<line x1="{ex:.1f}" y1="0" x2="{ex:.1f}" y2="{h}" '
+            f'class="track-entry-line track-entry-line-{track.key}" />'
+        )
 
     body = "".join(parts)
     return (

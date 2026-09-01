@@ -26,7 +26,8 @@ def test_track_svg_renders_polygon_and_entry_marker_when_data_present():
     )
     svg = track_svg(track, duration=2.0, measure_times=[0.0, 1.0])
     assert "<polygon" in svg
-    assert "stroke-dasharray" in svg  # the entry-time marker
+    assert "track-area-voix" in svg          # colour comes from the stylesheet, via the class
+    assert "track-entry-line-voix" in svg    # the entry-time marker
 
 
 def test_track_svg_handles_no_data_without_marker():
@@ -34,4 +35,4 @@ def test_track_svg_handles_no_data_without_marker():
     svg = track_svg(track, duration=10.0, measure_times=[])
     assert "<svg" in svg
     assert "<polygon" not in svg
-    assert "stroke-dasharray" not in svg
+    assert "track-entry-line" not in svg

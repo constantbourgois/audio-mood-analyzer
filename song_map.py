@@ -60,6 +60,7 @@ class SongMap:
     measure_times: list
     duration_sec: float
     tracks: list
+    beat_times: list = field(default_factory=list)   # réutilisé par la détection d'accords
 
 
 def _bandpass_rms(y: np.ndarray, sr: int, low: float, high: float) -> np.ndarray:
@@ -222,4 +223,5 @@ def build_song_map(y: np.ndarray, sr: int) -> SongMap:
         measure_times=[round(t, 2) for t in measure_times.tolist()],
         duration_sec=round(duration, 1),
         tracks=tracks,
+        beat_times=[round(t, 3) for t in beat_times.tolist()],
     )

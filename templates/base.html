@@ -6,149 +6,249 @@
   <title>{% block title %}Analyseur audio{% endblock %}</title>
   <style>
     :root {
-      color-scheme: light dark;
-      --bg: #f7f5f2;
-      --card: #ffffff;
-      --text: #1f1b16;
-      --muted: #6b625a;
-      --accent: #b5652f;
-      --border: #e5dfd6;
+      color-scheme: dark;
+
+      --bg: #121110;
+      --surface: #1a1918;
+      --surface-2: #232120;
+      --border: #302c29;
+      --border-strong: #433c37;
+      --text: #f2ece5;
+      --muted: #a49a90;
+      --accent: #e8904f;
+
+      /* Palette des pistes : validée sur le fond sombre (bande de clarté
+         OKLCH, plancher de chroma, séparation daltonisme, contraste). */
+      --c-percussions: #e2604e;
+      --c-basses: #35a888;
+      --c-accords: #4b8fd6;
+      --c-voix: #b8842c;
+      --c-chord-major: #4b8fd6;
+      --c-chord-minor: #b8842c;
     }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #171310;
-        --card: #221d18;
-        --text: #f2ece3;
-        --muted: #b3a89b;
-        --accent: #e08a4f;
-        --border: #382f27;
-      }
-    }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       background: var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      line-height: 1.5;
       display: flex;
       justify-content: center;
-      padding: 2.5rem 1rem;
+      padding: 3rem 1rem 4rem;
     }
-    main {
-      width: 100%;
-      max-width: 640px;
-    }
+
+    main { width: 100%; max-width: 680px; }
+
     h1 {
-      font-size: 1.5rem;
-      margin-bottom: 0.25rem;
+      font-size: 1.6rem;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      margin: 0 0 0.3rem;
+      overflow-wrap: anywhere;
     }
+
+    h2 {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      font-weight: 700;
+      margin: 0 0 0.9rem;
+    }
+
     .subtitle {
       color: var(--muted);
-      margin-top: 0;
-      margin-bottom: 1.75rem;
-      font-size: 0.95rem;
+      margin: 0 0 2rem;
+      font-size: 0.93rem;
     }
+
     .card {
-      background: var(--card);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 1.5rem;
-      margin-bottom: 1.25rem;
+      margin-bottom: 1rem;
     }
+
     .flash {
-      background: #f4c7b8;
-      color: #5c2a10;
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
+      background: rgba(226, 96, 78, 0.14);
+      border: 1px solid rgba(226, 96, 78, 0.45);
+      color: #f7b3a8;
+      border-radius: 10px;
+      padding: 0.8rem 1rem;
       margin-bottom: 1rem;
       font-size: 0.9rem;
     }
-    label { display: block; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.9rem; }
+
+    label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.88rem; }
+
     input[type="file"] {
       display: block;
       width: 100%;
-      padding: 0.6rem;
-      border: 1px dashed var(--border);
-      border-radius: 8px;
-      background: transparent;
+      padding: 0.9rem;
+      border: 1px dashed var(--border-strong);
+      border-radius: 10px;
+      background: var(--surface-2);
       color: var(--text);
-      margin-bottom: 1rem;
+      margin-bottom: 1.1rem;
+      font-size: 0.88rem;
     }
-    .checkbox-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.25rem; font-size: 0.9rem; }
-    .checkbox-row label { margin: 0; font-weight: 400; }
+    input[type="file"]:hover { border-color: var(--accent); }
+
+    .checkbox-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      margin-bottom: 1.4rem;
+      font-size: 0.88rem;
+    }
+    .checkbox-row label { margin: 0; font-weight: 400; color: var(--muted); }
+    input[type="checkbox"] { accent-color: var(--accent); margin-top: 0.15rem; }
+
     button {
       background: var(--accent);
-      color: white;
+      color: #1b1206;
       border: none;
-      border-radius: 8px;
-      padding: 0.7rem 1.4rem;
+      border-radius: 10px;
+      padding: 0.75rem 1.5rem;
       font-size: 0.95rem;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
     }
-    button:hover { opacity: 0.92; }
-    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin: 1rem 0; }
-    .metric { background: var(--bg); border-radius: 8px; padding: 0.8rem 1rem; }
-    .metric .label { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
-    .metric .value { font-size: 1.3rem; font-weight: 700; margin-top: 0.15rem; }
+    button:hover { filter: brightness(1.08); }
+
+    /* --- Ambiance : le résultat principal, traité en conséquence --- */
     .mood-banner {
-      background: var(--accent);
-      color: white;
-      border-radius: 8px;
-      padding: 1rem;
-      text-align: center;
-      font-size: 1.15rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border-strong);
+      border-left: 3px solid var(--accent);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+      font-size: 1.3rem;
       font-weight: 700;
-      margin: 1rem 0;
+      letter-spacing: -0.01em;
+      margin: 0 0 1.2rem;
     }
-    ul.similar { list-style: none; padding: 0; margin: 0; }
+
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin: 0; }
+    .metric { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; }
+    .metric .label {
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+    .metric .value { font-size: 1.25rem; font-weight: 700; margin-top: 0.2rem; letter-spacing: -0.01em; }
+
+    /* --- Modes --- */
+    ul.modes { list-style: none; padding: 0; margin: 0.2rem 0 0; }
+    ul.modes li {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+    ul.modes li:last-child { border-bottom: none; }
+    ul.modes li.best { font-weight: 700; color: var(--text); font-size: 1rem; }
+
+    /* --- Listes (accords, morceaux similaires) --- */
+    ul.similar { list-style: none; padding: 0; margin: 0; max-height: 320px; overflow-y: auto; }
     ul.similar li {
       display: flex;
       justify-content: space-between;
+      gap: 1rem;
       padding: 0.5rem 0;
       border-bottom: 1px solid var(--border);
-      font-size: 0.9rem;
+      font-size: 0.89rem;
     }
     ul.similar li:last-child { border-bottom: none; }
-    .muted { color: var(--muted); font-size: 0.85rem; }
-    a.back { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+
+    .chord-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.7rem; }
+    .chord-chip {
+      border: 1px solid var(--c-chord-major);
+      background: rgba(75, 143, 214, 0.16);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .chord-chip.minor {
+      border-color: var(--c-chord-minor);
+      background: rgba(184, 132, 44, 0.16);
+    }
+
+    .muted { color: var(--muted); font-size: 0.86rem; }
+    a.back { color: var(--accent); text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+    a.back:hover { text-decoration: underline; }
+
     .note {
       font-size: 0.8rem;
       color: var(--muted);
-      margin-top: 1.75rem;
-      line-height: 1.5;
+      margin-top: 1.5rem;
+      line-height: 1.6;
     }
-    .song-map { margin: 0.75rem 0 0.5rem; }
-    .grid-row { margin-bottom: 0.3rem; }
-    .grid-svg, .track-svg { width: 100%; height: auto; display: block; }
-    .measure-line { stroke: var(--border); stroke-width: 1; }
-    .measure-label { fill: var(--muted); font-size: 9px; }
-    .track-row { margin-bottom: 0.9rem; }
+    .note code { background: var(--surface-2); padding: 0.1rem 0.3rem; border-radius: 4px; }
+
+    /* --- Carte de la chanson --- */
+    .song-map { margin: 0.9rem 0 0.5rem; }
+    .grid-row { margin-bottom: 0.35rem; }
+    .grid-svg, .track-svg, .chord-svg { width: 100%; height: auto; display: block; }
+    .measure-line { stroke: var(--border-strong); stroke-width: 1; }
+    .measure-label { fill: var(--muted); font-size: 15px; }
+
+    .track-row { margin-bottom: 0.85rem; }
     .track-label {
       display: flex;
       align-items: baseline;
       flex-wrap: wrap;
-      gap: 0.4rem;
-      font-size: 0.82rem;
-      margin-bottom: 0.3rem;
+      gap: 0.45rem;
+      font-size: 0.83rem;
+      margin-bottom: 0.35rem;
     }
-    .track-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      display: inline-block;
-      align-self: center;
-    }
-    .track-dot-percussions { background: #c0392b; }
-    .track-dot-basses { background: #2f6f4f; }
-    .track-dot-accords { background: #3d6da8; }
-    .track-dot-voix { background: #b5652f; }
+    .track-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; align-self: center; }
+    .track-dot-percussions { background: var(--c-percussions); }
+    .track-dot-basses { background: var(--c-basses); }
+    .track-dot-accords { background: var(--c-accords); }
+    .track-dot-voix { background: var(--c-voix); }
     .track-entry { color: var(--muted); font-size: 0.78rem; }
     .track-plot {
-      border-radius: 6px;
+      border-radius: 8px;
       overflow: hidden;
-      background: var(--bg);
+      background: var(--surface-2);
       border: 1px solid var(--border);
+    }
+
+    /* Aires des pistes : la couleur est portée par la classe, pas par le SVG. */
+    .track-area { fill-opacity: 0.32; stroke-width: 1.5; }
+    .track-area-percussions { fill: var(--c-percussions); stroke: var(--c-percussions); }
+    .track-area-basses { fill: var(--c-basses); stroke: var(--c-basses); }
+    .track-area-accords { fill: var(--c-accords); stroke: var(--c-accords); }
+    .track-area-voix { fill: var(--c-voix); stroke: var(--c-voix); }
+
+    .track-entry-line { stroke-width: 2; stroke-dasharray: 4 2; }
+    .track-entry-line-percussions { stroke: var(--c-percussions); }
+    .track-entry-line-basses { stroke: var(--c-basses); }
+    .track-entry-line-accords { stroke: var(--c-accords); }
+    .track-entry-line-voix { stroke: var(--c-voix); }
+
+    .chord-block { fill-opacity: 0.30; stroke-width: 1; }
+    .chord-block-major { fill: var(--c-chord-major); stroke: var(--c-chord-major); }
+    .chord-block-minor { fill: var(--c-chord-minor); stroke: var(--c-chord-minor); }
+    .chord-label { fill: var(--text); font-size: 16px; font-weight: 600; }
+
+    @media (max-width: 480px) {
+      body { padding: 1.75rem 0.85rem 3rem; }
+      .card { padding: 1.15rem; }
+      .metrics { grid-template-columns: 1fr; }
     }
   </style>
 </head>

@@ -26,10 +26,29 @@
         <div class="value">{{ result.valence }} / {{ result.arousal }}</div>
       </div>
     </div>
+
+    {% if result.modal_candidates %}
+      <h2 style="margin-top: 1.5rem;">Mode</h2>
+      <ul class="modes">
+        {% for candidate in result.modal_candidates %}
+          <li{% if loop.first %} class="best"{% endif %}>
+            <span>{{ candidate.label }}</span>
+            <span class="muted">{{ (candidate.confidence * 100) | round | int }}%</span>
+          </li>
+        {% endfor %}
+      </ul>
+      <p class="note">
+        Les sept modes partagent les mêmes notes : les distinguer revient à
+        décider quelle note est la tonique, ce qui se joue souvent sur un seul
+        degré (la 7e pour ionien/mixolydien, la 6e pour dorien/éolien...). Les
+        trois meilleures hypothèses sont affichées avec leur score — si les
+        deux premières sont proches, l'analyse n'a pas vraiment tranché.
+      </p>
+    {% endif %}
   </div>
 
   <div class="card">
-    <h2 style="font-size: 1.05rem; margin-top:0;">Carte de la chanson</h2>
+    <h2>Carte de la chanson</h2>
     <p class="muted">
       {{ song_map.beats_per_measure }} temps/mesure (estimé) · {{ song_map.measure_count }} mesures ·
       {{ song_map.duration_sec | mmss }} · {{ song_map.tempo_bpm }} BPM
@@ -37,6 +56,14 @@
 
     <div class="song-map">
       <div class="grid-row">{{ grid_svg | safe }}</div>
+
+      {% if chords %}
+        <div class="track-row">
+          <div class="track-label"><strong>Accords (estimés)</strong></div>
+          <div class="track-plot">{{ chord_svg | safe }}</div>
+        </div>
+      {% endif %}
+
       {% for track, svg in track_svgs %}
         <div class="track-row">
           <div class="track-label">
@@ -53,7 +80,7 @@
       {% endfor %}
     </div>
 
-    <p class="note" style="margin-top: 0.5rem;">
+    <p class="note">
       Approche légère, sans séparation de sources : ces pistes sont des indices
       de texture (bandes de fréquence + composantes harmonique/percussive), pas
       une identification d'instrument précise. Une mélodie jouée par un
@@ -62,7 +89,48 @@
   </div>
 
   <div class="card">
-    <h2 style="font-size: 1.05rem; margin-top:0;">Morceaux similaires (bibliothèque locale)</h2>
+    <h2>Accords</h2>
+    {% if chords %}
+      <p class="muted">{{ chords | length }} segments détectés</p>
+
+      {% if top_chords %}
+        <div class="chord-chips">
+          {% for chord in top_chords %}
+            <span class="chord-chip{% if chord.label.endswith('m') %} minor{% endif %}">
+              {{ chord.label }} <span class="muted">{{ chord.seconds }}s</span>
+            </span>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <ul class="similar" style="margin-top: 1rem;">
+        {% for chord in chords %}
+          <li>
+            <span>{{ chord.label }}</span>
+            <span class="muted">
+              {% if chord.measure %}mesure {{ chord.measure }} · {% endif %}{{ chord.start_sec | mmss }}
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">
+        Aucun accord n'a pu être identifié avec assez de confiance (morceau
+        trop bruité, trop percussif, ou sans harmonie claire).
+      </p>
+    {% endif %}
+
+    <p class="note">
+      Reconnaissance par comparaison à des gabarits d'accords parfaits, sans
+      modèle entraîné : seuls les accords majeurs et mineurs sont reconnus, une
+      septième ou un accord enrichi sera ramené au triade le plus proche. Le
+      découpage suit la grille de temps détectée — si le tempo est mal estimé,
+      les frontières d'accords le sont aussi. À vérifier à l'oreille.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Morceaux similaires (bibliothèque locale)</h2>
     {% if similar %}
       <ul class="similar">
         {% for s in similar %}

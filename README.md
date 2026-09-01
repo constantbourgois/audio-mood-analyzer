@@ -5,6 +5,9 @@ chant, ...) et obtenir :
 
 - **Tempo** (BPM)
 - **Tonalité et mode** (majeur/mineur)
+- **Mode ecclésiastique** (ionien, dorien, phrygien, lydien, mixolydien,
+  éolien, locrien), avec les trois meilleures hypothèses et leur score
+- **Accords** estimés dans le temps, rattachés aux mesures
 - **Ambiance / mood** (ex. "Joyeux / Énergique", "Mélancolique / Calme")
 - **Carte de la chanson** : grille de mesures + moment où chaque "piste"
   (percussions, basses, accords, voix/mélodie) rentre dans le morceau
@@ -109,6 +112,35 @@ utiliser comme un guide visuel de la texture du morceau dans le temps, pas
 comme une transcription instrument par instrument. Le traitement (surtout
 le suivi de hauteur pour la voix) peut prendre de quelques secondes à
 environ une minute selon la durée du morceau.
+
+## Modes et accords
+
+**Modes.** Les sept modes ecclésiastiques partagent exactement les mêmes
+notes : ce qui les distingue n'est pas *quelles* notes sont jouées mais
+*laquelle est la tonique*. On ne peut donc pas déduire les profils modaux en
+faisant tourner celui du majeur — les sept modes seraient alors à égalité
+parfaite sur chaque tonique. Chaque mode a son propre profil, qui pèse ses
+degrés relativement à sa tonique, avec un appui sur le degré caractéristique
+(la 7e mineure pour le mixolydien, la 6e majeure pour le dorien, la 2de
+mineure pour le phrygien...). Les 84 interprétations possibles (12 toniques ×
+7 modes) sont classées, et les **trois meilleures sont affichées avec leur
+score** : quand un morceau n'emploie jamais son degré caractéristique, la
+distinction se joue à peu de choses, et deux scores proches signalent
+honnêtement que l'analyse n'a pas tranché.
+
+**Accords.** Comparaison à des gabarits, sans modèle entraîné : le
+chromagramme est découpé sur la grille de temps détectée, chaque segment est
+résumé par sa médiane puis comparé aux 24 accords parfaits (12 majeurs + 12
+mineurs) par similarité cosinus ; sous un seuil de confiance, aucun accord
+n'est déclaré plutôt qu'un accord inventé. Les segments consécutifs
+identiques sont fusionnés et rattachés à un numéro de mesure.
+
+Limites : seuls les accords parfaits majeurs et mineurs sont reconnus (une
+septième ou un accord enrichi est ramené au triade le plus proche — souvent la
+bonne fondamentale, pas toujours la bonne qualité) ; le chromagramme est
+calculé sur le signal complet, donc une batterie forte brouille la détection ;
+et le découpage dépend entièrement du suivi de tempo — si la grille de temps
+est fausse, les frontières d'accords le sont aussi.
 
 ## Limites, en toute transparence
 

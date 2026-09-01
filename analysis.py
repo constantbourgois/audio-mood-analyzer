@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, field
 
 import numpy as np
 import librosa
@@ -50,6 +50,7 @@ class AnalysisResult:
     mood_label: str
     valence: float
     arousal: float
+    modal_candidates: list = field(default_factory=list)
 
 
 def load_audio(path: str) -> tuple[np.ndarray, int]:
@@ -82,6 +83,96 @@ def estimate_key(chroma_mean: np.ndarray) -> tuple[str, str, float]:
     return NOTE_NAMES[best_pitch_class], best_mode, float(best_score)
 
 
+# Modes ecclésiastiques : intervalles en demi-tons depuis la tonique.
+MODE_INTERVALS = {
+    "ionien": (0, 2, 4, 5, 7, 9, 11),
+    "dorien": (0, 2, 3, 5, 7, 9, 10),
+    "phrygien": (0, 1, 3, 5, 7, 8, 10),
+    "lydien": (0, 2, 4, 6, 7, 9, 11),
+    "mixolydien": (0, 2, 4, 5, 7, 9, 10),
+    "éolien": (0, 2, 3, 5, 7, 8, 10),
+    "locrien": (0, 1, 3, 5, 6, 8, 10),
+}
+
+# Le degré qui distingue chaque mode de son voisin le plus proche : la 7e
+# majeure sépare l'ionien du mixolydien, la 6e majeure le dorien de l'éolien,
+# etc. C'est sur lui que se joue la reconnaissance.
+CHARACTERISTIC_DEGREE = {
+    "ionien": 11,
+    "dorien": 9,
+    "phrygien": 1,
+    "lydien": 6,
+    "mixolydien": 10,
+    "éolien": 8,
+    "locrien": 6,
+}
+
+_TONIC_WEIGHT = 6.0
+_FIFTH_WEIGHT = 4.5
+_THIRD_WEIGHT = 4.0
+_SCALE_WEIGHT = 2.8
+_NON_SCALE_WEIGHT = 1.2       # pas zéro : une note de passage chromatique ne doit pas tout casser
+_CHARACTERISTIC_BONUS = 0.7
+
+
+def _mode_profile(intervals: tuple, characteristic: int) -> np.ndarray:
+    """Profil de hauteurs ancré sur la tonique (degré 0).
+
+    Important : on ne peut PAS dériver ces profils en faisant tourner celui du
+    majeur. Les sept modes partagent le même ensemble de notes — un profil
+    tourné de deux demi-tons donnerait au dorien exactement le score de
+    l'ionien sur sa propre tonique, et les sept modes seraient à égalité
+    parfaite. Chaque profil pèse donc ses degrés *relativement à sa tonique*,
+    ce qui les rend réellement distincts.
+    """
+    profile = np.full(12, _NON_SCALE_WEIGHT)
+    for degree in intervals:
+        profile[degree] = _SCALE_WEIGHT
+    profile[0] = _TONIC_WEIGHT
+    profile[7 if 7 in intervals else 6] = _FIFTH_WEIGHT   # le locrien a une quinte diminuée
+    profile[4 if 4 in intervals else 3] = _THIRD_WEIGHT
+    profile[characteristic] += _CHARACTERISTIC_BONUS
+    return profile
+
+
+MODE_PROFILES = {
+    name: _mode_profile(intervals, CHARACTERISTIC_DEGREE[name])
+    for name, intervals in MODE_INTERVALS.items()
+}
+
+
+@dataclass
+class ModeCandidate:
+    tonic: str
+    mode: str
+    confidence: float
+
+    @property
+    def label(self) -> str:
+        return f"{self.tonic} {self.mode}"
+
+
+def estimate_modes(chroma_mean: np.ndarray, top_n: int = 3) -> list[ModeCandidate]:
+    """Classe les 84 interprétations modales possibles (12 toniques × 7 modes).
+
+    Renvoie plusieurs candidats à dessein : distinguer un mode de son voisin
+    revient souvent à trancher sur un seul degré, qui peut être rare ou absent
+    du morceau. Les deux premiers candidats sont fréquemment tous les deux
+    défendables, et l'écart entre leurs scores dit à quel point la réponse est
+    tranchée.
+    """
+    candidates = []
+    for mode, profile in MODE_PROFILES.items():
+        for tonic in range(12):
+            rotated = np.roll(profile, tonic)
+            correlation = np.corrcoef(chroma_mean, rotated)[0, 1]
+            if not np.isfinite(correlation):
+                continue
+            candidates.append(ModeCandidate(NOTE_NAMES[tonic], mode, round(float(correlation), 3)))
+    candidates.sort(key=lambda c: c.confidence, reverse=True)
+    return candidates[:top_n]
+
+
 def _normalize(value: float, low: float, high: float) -> float:
     return float(np.clip((value - low) / (high - low), 0.0, 1.0))
 
@@ -109,14 +200,21 @@ def estimate_mood(tempo_bpm: float, mode: str, rms_mean: float, centroid_mean: f
     return label, round(valence, 2), round(arousal, 2)
 
 
-def feature_vector(y: np.ndarray, sr: int) -> np.ndarray:
-    """Vecteur utilisé pour la similarité entre morceaux (chroma + MFCC + tempo)."""
-    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
+def feature_vector(y: np.ndarray, sr: int, chroma: np.ndarray | None = None, tempo: float | None = None) -> np.ndarray:
+    """Vecteur utilisé pour la similarité entre morceaux (chroma + MFCC + tempo).
+
+    chroma et tempo sont acceptés déjà calculés : l'analyse complète les a
+    généralement en main, et les recalculer doublait le chromagramme et le
+    suivi de tempo à chaque requête.
+    """
+    if chroma is None:
+        chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
     chroma_mean = chroma.mean(axis=1)
     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
     mfcc_mean = mfcc.mean(axis=1)
     mfcc_std = mfcc.std(axis=1)
-    tempo = estimate_tempo(y, sr)
+    if tempo is None:
+        tempo = estimate_tempo(y, sr)
     vec = np.concatenate([chroma_mean, mfcc_mean, mfcc_std, [tempo / 200.0]])
     norm = np.linalg.norm(vec)
     return vec / norm if norm > 0 else vec
@@ -128,6 +226,7 @@ def analyze_loaded(y: np.ndarray, sr: int, filename: str) -> tuple[AnalysisResul
     chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
     chroma_mean = chroma.mean(axis=1)
     key, mode, confidence = estimate_key(chroma_mean)
+    modal_candidates = estimate_modes(chroma_mean)
 
     tempo_bpm = estimate_tempo(y, sr)
 
@@ -145,8 +244,9 @@ def analyze_loaded(y: np.ndarray, sr: int, filename: str) -> tuple[AnalysisResul
         mood_label=mood_label,
         valence=valence,
         arousal=arousal,
+        modal_candidates=modal_candidates,
     )
-    vec = feature_vector(y, sr)
+    vec = feature_vector(y, sr, chroma=chroma, tempo=tempo_bpm)
     return result, vec
 
 
