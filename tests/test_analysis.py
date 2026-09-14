@@ -17,7 +17,7 @@ def test_estimate_key_returns_valid_note_and_mode(sample_audio):
     chroma_mean = librosa.feature.chroma_cqt(y=y, sr=sr).mean(axis=1)
     key, mode, confidence = estimate_key(chroma_mean)
     assert key in NOTE_NAMES
-    assert mode in ("majeur", "mineur")
+    assert mode in ("major", "minor")
     assert -1.0 <= confidence <= 1.0
 
 
@@ -26,7 +26,7 @@ def test_estimate_key_on_flat_chroma_reports_finite_confidence():
     number the result template can format."""
     key, mode, confidence = estimate_key(np.zeros(12))
     assert key in NOTE_NAMES
-    assert mode in ("majeur", "mineur")
+    assert mode in ("major", "minor")
     assert np.isfinite(confidence)
     assert int(confidence * 100) == 0
 
@@ -34,17 +34,17 @@ def test_estimate_key_on_flat_chroma_reports_finite_confidence():
 @pytest.mark.parametrize(
     "mode,tempo,rms,centroid,expect_high_valence",
     [
-        ("majeur", 140, 0.2, 3500, True),
-        ("mineur", 60, 0.02, 1000, False),
+        ("major", 140, 0.2, 3500, True),
+        ("minor", 60, 0.02, 1000, False),
     ],
 )
 def test_estimate_mood_valence_follows_mode_and_brightness(mode, tempo, rms, centroid, expect_high_valence):
     label, valence, arousal = estimate_mood(tempo, mode, rms, centroid, 22050)
     assert label in {
-        "Joyeux / Énergique",
-        "Paisible / Doux",
-        "Tendu / Sombre",
-        "Mélancolique / Calme",
+        "Happy / Energetic",
+        "Peaceful / Gentle",
+        "Tense / Dark",
+        "Melancholic / Calm",
     }
     assert (valence >= 0.5) == expect_high_valence
     assert 0.0 <= arousal <= 1.0
@@ -62,7 +62,7 @@ def test_analyze_loaded_returns_expected_fields(sample_audio):
     assert result.filename == "test.wav"
     assert result.duration_sec == pytest.approx(len(y) / sr, abs=0.1)
     assert result.key in NOTE_NAMES
-    assert result.mode in ("majeur", "mineur")
+    assert result.mode in ("major", "minor")
     assert result.mood_label
     assert 0.0 <= result.valence <= 1.0
     assert 0.0 <= result.arousal <= 1.0

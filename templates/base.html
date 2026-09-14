@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Analyseur audio{% endblock %}</title>
+  <title>{% block title %}Audio Analyser{% endblock %}</title>
   <style>
     :root {
       color-scheme: dark;
@@ -197,6 +197,51 @@
       line-height: 1.6;
     }
     .note code { background: var(--surface-2); padding: 0.1rem 0.3rem; border-radius: 4px; }
+
+    /* --- Structure --- */
+    .section-row { margin: 0.9rem 0 1.1rem; }
+    .section-svg { width: 100%; height: auto; display: block; }
+    .section-block { fill-opacity: 0.34; stroke-width: 1.5; }
+    .section-block-0 { fill: var(--c-percussions); stroke: var(--c-percussions); }
+    .section-block-1 { fill: var(--c-basses); stroke: var(--c-basses); }
+    .section-block-2 { fill: var(--c-accords); stroke: var(--c-accords); }
+    .section-block-3 { fill: var(--c-voix); stroke: var(--c-voix); }
+    .section-label { fill: var(--text); font-size: 17px; font-weight: 700; }
+
+    ol.timeline { list-style: none; padding: 0; margin: 0; counter-reset: none; }
+    ol.timeline li {
+      display: flex;
+      align-items: baseline;
+      gap: 0.8rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    ol.timeline li:last-child { border-bottom: none; }
+    .timeline-index {
+      flex: 0 0 1.6rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+    .timeline-body { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.45rem; }
+    .timeline-role { font-weight: 700; font-size: 0.95rem; }
+    .timeline-family {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      padding: 0.05rem 0.35rem;
+    }
+    .timeline-parts { color: var(--muted); font-size: 0.83rem; width: 100%; }
+    .timeline-when { flex: 0 0 auto; font-variant-numeric: tabular-nums; text-align: right; }
+
+    @media (max-width: 480px) {
+      ol.timeline li { flex-wrap: wrap; }
+      .timeline-when { flex: 1 1 100%; text-align: left; padding-left: 2.4rem; }
+    }
 
     /* --- Carte de la chanson --- */
     .song-map { margin: 0.9rem 0 0.5rem; }

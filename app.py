@@ -7,7 +7,8 @@ from werkzeug.utils import secure_filename
 from analysis import load_audio, analyze_loaded, find_similar
 from chords import estimate_chords, summarize_chords
 from song_map import build_song_map
-from viz import chord_ribbon_svg, measure_grid_svg, track_svg
+from structure import detect_sections
+from viz import chord_ribbon_svg, measure_grid_svg, section_ribbon_svg, track_svg
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LIBRARY_DIR = os.path.join(BASE_DIR, "library")
@@ -43,6 +44,7 @@ def _warmup_numba():
         analyze_loaded(warm_y, warm_sr, "warmup.wav")
         warm_map = build_song_map(warm_y, warm_sr)
         estimate_chords(warm_y, warm_sr, warm_map.beat_times, warm_map.measure_times)
+        detect_sections(warm_y, warm_sr, warm_map.beat_times, warm_map.measure_times, warm_map.tracks)
     except Exception as exc:
         # Never block startup on the warm-up, but say so loudly: silence here
         # means compilation lands on the first real request instead, which is
@@ -68,7 +70,7 @@ def allowed_file(filename: str) -> bool:
 
 @app.errorhandler(413)
 def file_too_large(_exc):
-    flash(f"Fichier trop volumineux (max {MAX_CONTENT_LENGTH // (1024 * 1024)} Mo).")
+    flash(f"File too large (max {MAX_CONTENT_LENGTH // (1024 * 1024)} MB).")
     return redirect(url_for("index"))
 
 
@@ -81,11 +83,11 @@ def index():
 def analyze():
     file = request.files.get("audio_file")
     if not file or file.filename == "":
-        flash("Choisis un fichier audio d'abord.")
+        flash("Choose an audio file first.")
         return redirect(url_for("index"))
 
     if not allowed_file(file.filename):
-        flash(f"Format non supporté. Formats acceptés : {', '.join(sorted(ALLOWED_EXTENSIONS))}.")
+        flash(f"Unsupported format. Accepted formats: {', '.join(sorted(ALLOWED_EXTENSIONS))}.")
         return redirect(url_for("index"))
 
     filename = secure_filename(file.filename)
@@ -108,8 +110,9 @@ def analyze():
         result, vec = analyze_loaded(y, sr, filename)
         song_map = build_song_map(y, sr)
         chords = estimate_chords(y, sr, song_map.beat_times, song_map.measure_times)
+        sections = detect_sections(y, sr, song_map.beat_times, song_map.measure_times, song_map.tracks)
     except Exception as exc:
-        flash(f"Impossible d'analyser ce fichier : {exc}")
+        flash(f"Could not analyse this file: {exc}")
         if cleanup and os.path.exists(tmp_path):
             os.remove(tmp_path)
         return redirect(url_for("index"))
@@ -122,6 +125,7 @@ def analyze():
     grid_svg = measure_grid_svg(song_map.measure_times, song_map.duration_sec, song_map.beats_per_measure)
     track_svgs = [(t, track_svg(t, song_map.duration_sec, song_map.measure_times)) for t in song_map.tracks]
     chord_svg = chord_ribbon_svg(chords, song_map.duration_sec, song_map.measure_times)
+    section_svg = section_ribbon_svg(sections, song_map.duration_sec)
 
     return render_template(
         "result.html",
@@ -138,6 +142,8 @@ def analyze():
         chords=chords,
         chord_svg=chord_svg,
         top_chords=summarize_chords(chords),
+        sections=sections,
+        section_svg=section_svg,
     )
 
 

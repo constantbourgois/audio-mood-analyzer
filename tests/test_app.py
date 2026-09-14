@@ -17,20 +17,20 @@ def client():
 def test_index_page_loads(client):
     resp = client.get("/")
     assert resp.status_code == 200
-    assert b"Analyseur audio" in resp.data
+    assert b"Audio Analyser" in resp.data
 
 
 def test_analyze_without_file_redirects_with_flash(client):
     resp = client.post("/analyze", data={}, content_type="multipart/form-data", follow_redirects=True)
     assert resp.status_code == 200
-    assert b"Choisis un fichier audio" in resp.data
+    assert b"Choose an audio file" in resp.data
 
 
 def test_analyze_rejects_disallowed_extension(client):
     data = {"audio_file": (io.BytesIO(b"not audio"), "notes.txt")}
     resp = client.post("/analyze", data=data, content_type="multipart/form-data", follow_redirects=True)
     assert resp.status_code == 200
-    assert "Format non support".encode() in resp.data
+    assert b"Unsupported format" in resp.data
 
 
 def test_analyze_valid_wav_returns_result_page(client, sample_wav_bytes):
@@ -39,7 +39,7 @@ def test_analyze_valid_wav_returns_result_page(client, sample_wav_bytes):
     assert resp.status_code == 200
     body = resp.data.decode("utf-8")
     assert "mood-banner" in body
-    assert "Carte de la chanson" in body
+    assert "Structure" in body
 
 
 def test_analyze_add_to_library_persists_file(client, sample_wav_bytes):

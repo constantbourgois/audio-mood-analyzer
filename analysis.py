@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import librosa
 
-NOTE_NAMES = ["Do", "Do#", "Ré", "Ré#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"]
+NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 # Profils de Krumhansl-Schmuckler (poids perceptif de chaque degré de la gamme)
 MAJOR_PROFILE = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
@@ -66,16 +66,16 @@ def estimate_tempo(y: np.ndarray, sr: int) -> float:
 def estimate_key(chroma_mean: np.ndarray) -> tuple[str, str, float]:
     best_score = -np.inf
     best_pitch_class = 0
-    best_mode = "majeur"
+    best_mode = "major"
     for i in range(12):
         major_rot = np.roll(MAJOR_PROFILE, i)
         minor_rot = np.roll(MINOR_PROFILE, i)
         major_corr = np.corrcoef(chroma_mean, major_rot)[0, 1]
         minor_corr = np.corrcoef(chroma_mean, minor_rot)[0, 1]
         if major_corr > best_score:
-            best_score, best_pitch_class, best_mode = major_corr, i, "majeur"
+            best_score, best_pitch_class, best_mode = major_corr, i, "major"
         if minor_corr > best_score:
-            best_score, best_pitch_class, best_mode = minor_corr, i, "mineur"
+            best_score, best_pitch_class, best_mode = minor_corr, i, "minor"
     if not np.isfinite(best_score):
         # Silence (or any flat chroma) makes every correlation NaN, leaving the
         # score at -inf: report no confidence rather than an unformattable one.
@@ -85,26 +85,26 @@ def estimate_key(chroma_mean: np.ndarray) -> tuple[str, str, float]:
 
 # Modes ecclésiastiques : intervalles en demi-tons depuis la tonique.
 MODE_INTERVALS = {
-    "ionien": (0, 2, 4, 5, 7, 9, 11),
-    "dorien": (0, 2, 3, 5, 7, 9, 10),
-    "phrygien": (0, 1, 3, 5, 7, 8, 10),
-    "lydien": (0, 2, 4, 6, 7, 9, 11),
-    "mixolydien": (0, 2, 4, 5, 7, 9, 10),
-    "éolien": (0, 2, 3, 5, 7, 8, 10),
-    "locrien": (0, 1, 3, 5, 6, 8, 10),
+    "Ionian": (0, 2, 4, 5, 7, 9, 11),
+    "Dorian": (0, 2, 3, 5, 7, 9, 10),
+    "Phrygian": (0, 1, 3, 5, 7, 8, 10),
+    "Lydian": (0, 2, 4, 6, 7, 9, 11),
+    "Mixolydian": (0, 2, 4, 5, 7, 9, 10),
+    "Aeolian": (0, 2, 3, 5, 7, 8, 10),
+    "Locrian": (0, 1, 3, 5, 6, 8, 10),
 }
 
 # Le degré qui distingue chaque mode de son voisin le plus proche : la 7e
 # majeure sépare l'ionien du mixolydien, la 6e majeure le dorien de l'éolien,
 # etc. C'est sur lui que se joue la reconnaissance.
 CHARACTERISTIC_DEGREE = {
-    "ionien": 11,
-    "dorien": 9,
-    "phrygien": 1,
-    "lydien": 6,
-    "mixolydien": 10,
-    "éolien": 8,
-    "locrien": 6,
+    "Ionian": 11,
+    "Dorian": 9,
+    "Phrygian": 1,
+    "Lydian": 6,
+    "Mixolydian": 10,
+    "Aeolian": 8,
+    "Locrian": 6,
 }
 
 _TONIC_WEIGHT = 6.0
@@ -184,18 +184,18 @@ def estimate_mood(tempo_bpm: float, mode: str, rms_mean: float, centroid_mean: f
     arousal = 0.6 * tempo_component + 0.4 * rms_component
 
     # Valence (positif/négatif) : mode + brillance spectrale
-    mode_component = 1.0 if mode == "majeur" else 0.0
+    mode_component = 1.0 if mode == "major" else 0.0
     brightness_component = _normalize(centroid_mean, 800, 4000)
     valence = 0.6 * mode_component + 0.4 * brightness_component
 
     if valence >= 0.5 and arousal >= 0.5:
-        label = "Joyeux / Énergique"
+        label = "Happy / Energetic"
     elif valence >= 0.5 and arousal < 0.5:
-        label = "Paisible / Doux"
+        label = "Peaceful / Gentle"
     elif valence < 0.5 and arousal >= 0.5:
-        label = "Tendu / Sombre"
+        label = "Tense / Dark"
     else:
-        label = "Mélancolique / Calme"
+        label = "Melancholic / Calm"
 
     return label, round(valence, 2), round(arousal, 2)
 

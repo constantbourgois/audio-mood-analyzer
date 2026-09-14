@@ -1,28 +1,28 @@
 {% extends "base.html" %}
+{% block title %}Audio Analyser{% endblock %}
 {% block content %}
-  <h1>Analyseur audio</h1>
-  <p class="subtitle">Tonalité, mode, tempo et ambiance d'un enregistrement (guitare, chant, ...).</p>
+  <h1>Audio Analyser</h1>
+  <p class="subtitle">Key, mode, tempo, chords, structure and mood of a recording (guitar, vocals, ...).</p>
 
   <div class="card">
     <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
-      <label for="audio_file">Fichier audio (.wav, .flac, .ogg, .mp3, .m4a)</label>
+      <label for="audio_file">Audio file (.wav, .flac, .ogg, .mp3, .m4a)</label>
       <input type="file" id="audio_file" name="audio_file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" required>
 
       <div class="checkbox-row">
         <input type="checkbox" id="add_to_library" name="add_to_library">
-        <label for="add_to_library">Ajouter ce fichier à ma bibliothèque (pour comparer de futurs morceaux)</label>
+        <label for="add_to_library">Add this file to my library (to compare future tracks against)</label>
       </div>
 
-      <button type="submit">Analyser</button>
+      <button type="submit">Analyse</button>
     </form>
   </div>
 
   <p class="note">
-    L'estimation de tonalité/tempo repose sur des méthodes de traitement du
-    signal classiques et reste une approximation. L'ambiance est une
-    heuristique (pas un modèle entraîné). La recherche de morceaux
-    similaires ne compare qu'aux fichiers de ta bibliothèque locale
-    (dossier <code>library/</code>) — il n'y a pas de connexion à une base
-    musicale externe.
+    Key and tempo come from classic signal-processing methods and remain
+    approximations. The mood is a heuristic, not a trained model. Similar-track
+    search only compares against files in your own local library
+    (<code>library/</code>) — there is no connection to an external music
+    database.
   </p>
 {% endblock %}

@@ -17,6 +17,10 @@ CHORD_HEIGHT = 40
 # dans le bloc : mieux vaut le laisser nu que d'écrire par-dessus le voisin.
 CHORD_LABEL_MIN_WIDTH = 48
 
+SECTION_HEIGHT = 46
+SECTION_LABEL_MIN_WIDTH = 90   # "Chorus 1" needs noticeably more room than "Am"
+SECTION_FAMILY_SLOTS = 4       # families beyond this reuse a slot; the label still disambiguates
+
 # Les couleurs vivent dans la feuille de style (classes CSS), pas ici : le
 # SVG est inline dans la page, donc une classe suffit, et la palette reste
 # définie à un seul endroit avec le reste du thème.
@@ -75,6 +79,35 @@ def chord_ribbon_svg(chords: list, duration: float, measure_times: list) -> str:
     return (
         f'<svg viewBox="0 0 {VIEW_WIDTH} {h}" preserveAspectRatio="none" '
         f'class="chord-svg" role="img" aria-label="Suite d\'accords estimée, {len(chords)} segments">{body}</svg>'
+    )
+
+
+def section_ribbon_svg(sections: list, duration: float) -> str:
+    """Structure bar: one block per section, coloured by family so repeats
+    are obvious at a glance, and labelled so colour is never the only cue."""
+    h = SECTION_HEIGHT
+    parts = []
+    for section in sections:
+        x1 = _x(section.start_sec, duration)
+        x2 = _x(section.end_sec, duration)
+        width = max(0.0, x2 - x1)
+        if width <= 0:
+            continue
+        slot = (ord(section.family[0]) - ord("A")) % SECTION_FAMILY_SLOTS
+        parts.append(
+            f'<rect x="{x1:.1f}" y="2" width="{width:.1f}" height="{h - 4}" rx="3" '
+            f'class="section-block section-block-{slot}" />'
+        )
+        if width >= SECTION_LABEL_MIN_WIDTH:
+            parts.append(
+                f'<text x="{(x1 + x2) / 2:.1f}" y="{h / 2 + 6:.1f}" text-anchor="middle" '
+                f'class="section-label">{section.role}</text>'
+            )
+    body = "".join(parts)
+    return (
+        f'<svg viewBox="0 0 {VIEW_WIDTH} {h}" preserveAspectRatio="none" '
+        f'class="section-svg" role="img" '
+        f'aria-label="Song structure, {len(sections)} sections">{body}</svg>'
     )
 
 

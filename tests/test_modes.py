@@ -27,13 +27,13 @@ def test_mode_profiles_are_not_mere_rotations_of_each_other():
     """Le piège de la détection modale : dériver les profils en faisant
     tourner celui du majeur les rendrait tous équivalents, et les sept modes
     seraient à égalité parfaite sur chaque tonique."""
-    ionian = MODE_PROFILES["ionien"]
+    ionian = MODE_PROFILES["Ionian"]
     for name, profile in MODE_PROFILES.items():
-        if name == "ionien":
+        if name == "Ionian":
             continue
         for shift in range(12):
             assert not np.allclose(profile, np.roll(ionian, shift)), (
-                f"{name} est une simple rotation de l'ionien (décalage {shift})"
+                f"{name} is a plain rotation of Ionian (décalage {shift})"
             )
 
 
@@ -46,11 +46,11 @@ def test_each_mode_is_recoverable_from_its_own_chroma(mode):
 
 
 def test_estimate_modes_returns_ranked_candidates():
-    candidates = estimate_modes(_chroma_for(0, "mixolydien"), top_n=3)
+    candidates = estimate_modes(_chroma_for(0, "Mixolydian"), top_n=3)
     assert len(candidates) == 3
     scores = [c.confidence for c in candidates]
     assert scores == sorted(scores, reverse=True)
-    assert candidates[0].label == "Do mixolydien"
+    assert candidates[0].label == "C Mixolydian"
 
 
 def test_estimate_modes_on_flat_chroma_does_not_crash():
@@ -62,8 +62,8 @@ def test_estimate_modes_on_flat_chroma_does_not_crash():
 def test_mixolydian_and_ionian_differ_on_the_seventh():
     """Les deux modes ne se distinguent que par la 7e : le mode détecté doit
     suivre ce degré et rien d'autre."""
-    ionian_best = estimate_modes(_chroma_for(0, "ionien"))[0]
-    mixo_best = estimate_modes(_chroma_for(0, "mixolydien"))[0]
-    assert ionian_best.mode == "ionien"
-    assert mixo_best.mode == "mixolydien"
-    assert ionian_best.tonic == mixo_best.tonic == "Do"
+    ionian_best = estimate_modes(_chroma_for(0, "Ionian"))[0]
+    mixo_best = estimate_modes(_chroma_for(0, "Mixolydian"))[0]
+    assert ionian_best.mode == "Ionian"
+    assert mixo_best.mode == "Mixolydian"
+    assert ionian_best.tonic == mixo_best.tonic == "C"

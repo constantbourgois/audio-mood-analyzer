@@ -26,10 +26,10 @@ def test_estimate_chords_recognizes_major_and_minor_triads(two_chord_audio):
     segments = estimate_chords(y, sr, beat_times, measure_times=[0.0, 2.0])
 
     labels = [s.label for s in segments]
-    assert "Do" in labels, f"accord majeur non reconnu, obtenu : {labels}"
-    assert "Lam" in labels, f"accord mineur non reconnu, obtenu : {labels}"
+    assert "C" in labels, f"major triad not recognised, obtenu : {labels}"
+    assert "Am" in labels, f"minor triad not recognised, obtenu : {labels}"
     # l'ordre doit suivre le signal : Do avant Lam
-    assert labels.index("Do") < labels.index("Lam")
+    assert labels.index("C") < labels.index("Am")
 
 
 def test_estimate_chords_merges_consecutive_identical_segments(two_chord_audio):
@@ -69,12 +69,12 @@ def test_segments_carry_measure_and_ordered_times(two_chord_audio):
 
 def test_summarize_chords_ranks_by_total_duration():
     segments = [
-        ChordSegment(label="Do", start_sec=0.0, end_sec=1.0, measure=1),
-        ChordSegment(label="Sol", start_sec=1.0, end_sec=5.0, measure=1),
-        ChordSegment(label="Do", start_sec=5.0, end_sec=7.0, measure=2),
+        ChordSegment(label="C", start_sec=0.0, end_sec=1.0, measure=1),
+        ChordSegment(label="G", start_sec=1.0, end_sec=5.0, measure=1),
+        ChordSegment(label="C", start_sec=5.0, end_sec=7.0, measure=2),
     ]
     summary = summarize_chords(segments)
     # Sol : 4 s d'un bloc ; Do : 1 s + 2 s = 3 s cumulées.
-    assert [item["label"] for item in summary] == ["Sol", "Do"]
+    assert [item["label"] for item in summary] == ["G", "C"]
     assert summary[0]["seconds"] == 4.0
     assert summary[1]["seconds"] == 3.0

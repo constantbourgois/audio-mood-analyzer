@@ -8,10 +8,10 @@ directe : on ne peut pas identifier un instrument precis. Ce qu'on isole a
 la place, ce sont des BANDES DE FREQUENCE et les composantes
 harmonique/percussive du signal complet (via HPSS de librosa) :
 
-- "Percussions (probable)"      -> energie large bande de la composante
+- "Percussion (likely)"      -> energie large bande de la composante
                                     percussive (HPSS)
-- "Basses (graves)"              -> energie de la bande < 250 Hz
-- "Accords / harmonie (médiums)" -> energie de la bande 250-2500 Hz sur la
+- "Bass (low end)"              -> energie de la bande < 250 Hz
+- "Chords / harmony (mids)" -> energie de la bande 250-2500 Hz sur la
                                     composante harmonique
 - "Voix / mélodie (probable)"    -> probabilite "voisee" de pYIN (suivi de
                                     hauteur monophonique) sur la composante
@@ -40,6 +40,7 @@ ENTRY_THRESHOLD_RATIO = 0.2   # fraction du pic de la piste pour considerer qu'e
 ENTRY_SUSTAIN_SEC = 0.5       # duree minimale au-dessus du seuil pour ignorer un simple transitoire
 ENVELOPE_RELEASE_SEC = 1.5    # temps de relachement : comble les silences entre deux notes d'une meme piste
 DOWNSAMPLE_POINTS = 240       # nombre de points gardes par piste pour l'affichage
+MEASURE_TOLERANCE_SEC = 0.05  # tolérance d'arrondi pour placer un instant sur la grille de mesures
 
 
 @dataclass
@@ -88,6 +89,21 @@ def _envelope_follower(x: np.ndarray, hop_sec: float, release_sec: float = ENVEL
         decayed = out[i - 1] * decay
         out[i] = x[i] if x[i] > decayed else decayed
     return out
+
+
+def measure_at(time_sec: float, measure_times) -> int | None:
+    """1-indexed bar containing this instant, or None when it cannot be placed
+    on the grid — either no bars were found at all, or the instant falls before
+    the first one. A quiet intro carries no detectable beat, so the grid starts
+    after it; reporting "bar 1" there would put the intro inside a bar that
+    begins several seconds later."""
+    if measure_times is None or not len(measure_times):
+        return None
+    # Small tolerance: a boundary snapped to a beat and then rounded can land a
+    # few milliseconds before that bar line, which would otherwise read as
+    # "before the first bar" for a section that starts exactly on it.
+    index = int(np.searchsorted(measure_times, time_sec + MEASURE_TOLERANCE_SEC, side="right"))
+    return index if index >= 1 else None
 
 
 def _normalize01(x: np.ndarray) -> np.ndarray:
@@ -169,13 +185,13 @@ def build_song_map(y: np.ndarray, sr: int) -> SongMap:
     raw_tracks = []
 
     perc_rms = librosa.feature.rms(y=y_percussive, hop_length=HOP_LENGTH)[0]
-    raw_tracks.append(("percussions", "Percussions (probable)", perc_rms, False))
+    raw_tracks.append(("percussions", "Percussion (likely)", perc_rms, False))
 
     bass_rms = _bandpass_rms(y_harmonic, sr, 30, 250)
-    raw_tracks.append(("basses", "Basses (graves)", bass_rms, False))
+    raw_tracks.append(("basses", "Bass (low end)", bass_rms, False))
 
     mid_rms = _bandpass_rms(y_harmonic, sr, 250, 2500)
-    raw_tracks.append(("accords", "Accords / harmonie (médiums)", mid_rms, False))
+    raw_tracks.append(("accords", "Chords / harmony (mids)", mid_rms, False))
 
     # fmin releve a C3 : evite de confondre une note de basse grave (souvent
     # 40-130 Hz) avec une voix, meme si ca exclut les voix d'homme les plus
@@ -188,7 +204,7 @@ def build_song_map(y: np.ndarray, sr: int) -> SongMap:
         hop_length=HOP_LENGTH,
     )
     voiced_prob = np.nan_to_num(voiced_prob)
-    raw_tracks.append(("voix", "Voix / mélodie principale (probable)", voiced_prob, True))
+    raw_tracks.append(("voix", "Vocals / lead melody (likely)", voiced_prob, True))
 
     tracks = []
     for key, label, values, denoise in raw_tracks:
