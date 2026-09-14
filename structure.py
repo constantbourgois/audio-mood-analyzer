@@ -18,11 +18,11 @@ How it works, and what is actually measured:
   bridge. On an unusual arrangement these names will be wrong even when the
   boundaries are right — which is why the family letter is shown alongside.
 
-The layers listed per section come from the song-map tracks, so the same
-limitation applies: these are frequency bands and harmonic/percussive
-components, never a named instrument. A section says "harmony", never
-"guitar" — telling those apart needs source separation, which this app
-deliberately does not carry.
+Each section also lists what is playing in it. When the YAMNet tagger is
+available (see instruments.py) those are real instrument names — "acoustic
+guitar", "drum kit". Without it, the listing falls back to the song-map
+layers, which are frequency bands and harmonic/percussive components and can
+only say "harmony", never which instrument produced it.
 """
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import librosa
 
+from instruments import detect_instruments, instruments_between
 from song_map import measure_at
 
 HOP_LENGTH = 512
@@ -65,6 +66,7 @@ class Section:
     start_measure: int | None
     end_measure: int | None
     parts: list = field(default_factory=list)
+    instruments: list = field(default_factory=list)   # named by the model, when it is available
 
     @property
     def duration_sec(self) -> float:
@@ -72,6 +74,10 @@ class Section:
 
     @property
     def parts_label(self) -> str:
+        """Named instruments when the model recognised any, otherwise the
+        band-based layers — so the timeline always says something useful."""
+        if self.instruments:
+            return ", ".join(i.name for i in self.instruments)
         return ", ".join(self.parts) if self.parts else "—"
 
 
@@ -262,6 +268,9 @@ def detect_sections(y: np.ndarray, sr: int, beat_times, measure_times, tracks) -
     if not means:
         return []
 
+    # One pass of the tagger for the whole track; sections just slice into it.
+    tag_scores, tag_groups, tag_frame_sec = detect_instruments(y, sr)
+
     families = _group_families(means)
     energies = [float(vector[-1]) for vector in means]   # the scaled RMS column
     roles = _assign_roles(families, energies)
@@ -288,5 +297,6 @@ def detect_sections(y: np.ndarray, sr: int, beat_times, measure_times, tracks) -
             start_measure=measure_at(start_sec, measure_times),
             end_measure=measure_at(max(start_sec, end_sec - 0.01), measure_times),
             parts=_active_parts(tracks, start_sec, end_sec),
+            instruments=instruments_between(tag_scores, tag_groups, tag_frame_sec, start_sec, end_sec),
         ))
     return sections

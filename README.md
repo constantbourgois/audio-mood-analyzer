@@ -8,6 +8,8 @@ chant, ...) et obtenir :
 - **Mode ecclésiastique** (ionien, dorien, phrygien, lydien, mixolydien,
   éolien, locrien), avec les trois meilleures hypothèses et leur score
 - **Accords** estimés dans le temps, rattachés aux mesures
+- **Structure** du morceau (intro, couplet, refrain...) avec, pour chaque
+  section, les **instruments reconnus**
 - **Ambiance / mood** (ex. "Joyeux / Énergique", "Mélancolique / Calme")
 - **Carte de la chanson** : grille de mesures + moment où chaque "piste"
   (percussions, basses, accords, voix/mélodie) rentre dans le morceau
@@ -112,6 +114,29 @@ utiliser comme un guide visuel de la texture du morceau dans le temps, pas
 comme une transcription instrument par instrument. Le traitement (surtout
 le suivi de hauteur pour la voix) peut prendre de quelques secondes à
 environ une minute selon la durée du morceau.
+
+## Instruments
+
+C'est la seule partie de l'appli qui utilise un modèle entraîné — et le seul
+moyen de mettre un vrai nom sur un instrument. Le reste travaille sur des
+bandes de fréquence, qui peuvent dire « quelque chose joue dans les médiums »
+mais jamais « c'est une guitare acoustique ».
+
+Modèle : **YAMNet** (tagger AudioSet, 521 classes), 4 Mo, exécuté via
+`ai-edge-litert`. Une fenêtre de 0,975 s prend environ **2 ms** en CPU, donc
+étiqueter un morceau entier coûte une fraction de seconde — assez léger pour
+tenir à côté de librosa sur une instance de 512 Mo. Les taggers plus précis
+(PANNs CNN14 ~300 Mo, AST/PaSST ~340 Mo) ne rentrent pas.
+
+Le fichier de poids n'est pas versionné : `python fetch_model.py` le
+télécharge (le build Render le fait tout seul). **Sans lui, l'appli continue
+de fonctionner** et retombe sur les couches par bande de fréquence.
+
+Limites : le vocabulaire est celui d'AudioSet (« Acoustic guitar » oui, une
+marque ou un accordage non) ; un instrument discret sous un instrument fort
+passe souvent inaperçu ; une guitare saturée peut être entendue comme un
+synthé. Le score affiché est une confiance, pas une probabilité d'avoir
+raison — le seuil est volontairement prudent.
 
 ## Modes et accords
 
