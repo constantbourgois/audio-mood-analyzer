@@ -6,7 +6,6 @@ from werkzeug.utils import secure_filename
 
 from analysis import load_audio, analyze_loaded, find_similar
 from chords import estimate_chords, summarize_chords
-from instruments import is_available
 from song_map import build_song_map
 from structure import detect_sections
 from viz import chord_ribbon_svg, measure_grid_svg, section_ribbon_svg, track_svg
@@ -28,7 +27,18 @@ def _warmup_numba():
     hpss, pyin, and librosa.load's own lazy-loaded guvectorize) to compile
     now, at process boot, instead of on a live request. On a slow/throttled
     CPU that first-ever compile can itself take longer than a request
-    timeout — this is what caused production WORKER TIMEOUT crashes."""
+    timeout — this is what caused production WORKER TIMEOUT crashes.
+
+    Deliberately does NOT call estimate_chords, detect_sections, or the
+    instrument tagger. chroma/mfcc/beat_track/hpss/pyin - the actual
+    numba-jitted primitives - are already exercised below via analyze_loaded
+    and build_song_map; chords and structure only add plain numpy/sklearn
+    work on top of them, nothing that benefits from warming. Reaching into
+    the tagger here cost a production deploy: loading ai-edge-litert added
+    real minutes to master startup on Render's throttled CPU, long enough
+    that the port was never detected open before the platform gave up and
+    killed the instance. Loading it lazily, in a worker, on whichever
+    request first needs it, keeps that cost off the boot path entirely."""
     import sys
 
     import numpy as np
@@ -43,12 +53,7 @@ def _warmup_numba():
             sf.write(tmp.name, y, SAMPLE_RATE)
             warm_y, warm_sr = load_audio(tmp.name)
         analyze_loaded(warm_y, warm_sr, "warmup.wav")
-        warm_map = build_song_map(warm_y, warm_sr)
-        estimate_chords(warm_y, warm_sr, warm_map.beat_times, warm_map.measure_times)
-        detect_sections(warm_y, warm_sr, warm_map.beat_times, warm_map.measure_times, warm_map.tracks)
-        # Loading the tagger here means its weights are paged in once in the
-        # master and shared copy-on-write by every worker, not loaded per worker.
-        is_available()
+        build_song_map(warm_y, warm_sr)
     except Exception as exc:
         # Never block startup on the warm-up, but say so loudly: silence here
         # means compilation lands on the first real request instead, which is

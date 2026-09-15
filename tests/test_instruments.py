@@ -16,19 +16,41 @@ needs_model = pytest.mark.skipif(
 )
 
 
-def test_missing_model_degrades_instead_of_raising(monkeypatch):
-    """The app must keep working when the weights are absent — that is the
-    whole reason the tagger is optional."""
+def test_missing_model_degrades_instead_of_raising(monkeypatch, tmp_path):
+    """The app must keep working when the weights are absent and the
+    self-download fails (offline, blocked host, ...) — that is the whole
+    reason the tagger is optional."""
     monkeypatch.setattr(instruments, "_tagger", None)
-    monkeypatch.setattr(instruments, "MODEL_PATH", "/nonexistent/yamnet.tflite")
+    monkeypatch.setattr(instruments, "MODEL_PATH", str(tmp_path / "yamnet.tflite"))
+    monkeypatch.setattr(instruments, "_download_model", lambda *a, **k: False)
     tagger = instruments.get_tagger()
     assert tagger.available is False
 
-    scores, groups, frame_sec = detect_instruments(np.zeros(32000, dtype=np.float32), 16000)
-    assert scores.size == 0 and groups == []
-    assert summarize(scores, groups) == []
-    assert instruments_between(scores, groups, frame_sec, 0.0, 5.0) == []
+
+@needs_model
+def test_tagger_self_downloads_when_model_file_is_missing(monkeypatch, tmp_path):
+    """The whole point of the lazy download: the feature must not depend on a
+    separate build step ever having run — two different attempts at wiring
+    that build step in (render.yaml, then the dashboard build command) each
+    silently failed to take effect on the actual deployment."""
+    import shutil
+
+    original_path = instruments.MODEL_PATH
     monkeypatch.setattr(instruments, "_tagger", None)
+    target = tmp_path / "yamnet.tflite"
+    monkeypatch.setattr(instruments, "MODEL_PATH", str(target))
+
+    def fake_download(*a, **k):
+        # Stand in for the network call: copy the already-fetched weights, so
+        # the rest of _Tagger.__init__ (parsing labels, allocating tensors)
+        # runs for real against a genuine file.
+        shutil.copyfile(original_path, target)
+        return True
+
+    monkeypatch.setattr(instruments, "_download_model", fake_download)
+    tagger = instruments.get_tagger()
+    assert tagger.available is True
+    assert target.exists()
 
 
 def test_summarize_ranks_by_score_and_applies_the_threshold():

@@ -88,6 +88,33 @@ class InstrumentScore:
     score: float
 
 
+def _download_model(timeout_sec: float = 10.0) -> bool:
+    """Best-effort, one-shot fetch of the weights if they aren't on disk.
+
+    This exists because the build-time fetch (fetch_model.py, run as a build
+    step) turned out to depend on that step actually being configured on the
+    deployment platform - and it silently wasn't, twice, on two different
+    fixes to two different settings. Self-downloading on first real use
+    removes that dependency entirely: the feature works as long as the
+    process can reach the URL at some point while running, regardless of what
+    the build did. Runs lazily, in whichever worker handles the first request
+    that needs it - never during the master's boot warmup, since a slow or
+    blocked download there would delay the whole service coming up.
+    """
+    import urllib.request
+
+    try:
+        os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+        tmp_path = MODEL_PATH + ".part"
+        with urllib.request.urlopen(MODEL_URL, timeout=timeout_sec) as response, \
+                open(tmp_path, "wb") as f:
+            f.write(response.read())
+        os.replace(tmp_path, MODEL_PATH)  # atomic: no other worker ever sees a partial file
+        return True
+    except Exception:
+        return False
+
+
 class _Tagger:
     """Loads the model once and keeps it. Import-time friendly: a missing
     runtime or model file leaves `available` False instead of raising."""
@@ -100,7 +127,7 @@ class _Tagger:
             from ai_edge_litert.interpreter import Interpreter
         except ImportError:
             return
-        if not os.path.exists(MODEL_PATH):
+        if not os.path.exists(MODEL_PATH) and not _download_model():
             return
         try:
             with zipfile.ZipFile(MODEL_PATH) as bundle:
