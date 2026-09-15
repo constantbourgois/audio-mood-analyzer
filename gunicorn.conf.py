@@ -26,12 +26,22 @@ import os
 
 bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 
-# Two workers on purpose, overriding the WEB_CONCURRENCY=1 that Render sets
-# from the instance's CPU count: an analysis occupies its worker for tens of
-# seconds, and the second one keeps the page responsive meanwhile. preload_app
-# means they share the interpreter and compiled code copy-on-write, so the
-# second worker costs little beyond its own per-request arrays.
-workers = 2
+# One worker. Two used to run on the theory that preload_app's copy-on-write
+# sharing made a second worker cheap - wrong in practice, and a real upload
+# proved it: CPython's refcounting writes to the header of every object a
+# worker merely touches while executing, including shared modules and code
+# objects, which steadily un-shares those "shared" pages. Render's metrics on
+# the crash that prompted this showed memory climbing to and pinning at
+# exactly this instance's 512 MiB limit for several minutes before the kernel
+# killed the process - consistent with two workers each independently
+# carrying close to the full ~310 MB baseline (620 MB alone, before either
+# one's own request data) rather than truly sharing it. The instance's CPU
+# limit is 0.15 of a core anyway, too little for two workers to usefully
+# overlap work. One worker trades away serving a second request while the
+# first (a request that already takes tens of seconds) is in flight, which
+# is an acceptable loss for a personal single-user tool against the
+# alternative of an OOM kill.
+workers = 1
 
 # A few minutes of audio takes far longer than the 30s default to analyse.
 timeout = 300
