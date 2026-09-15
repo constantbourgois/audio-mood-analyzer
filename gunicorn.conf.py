@@ -23,6 +23,7 @@ Each worker still gets its own private cache directory post-fork, as a
 safety net for any signature the warm-up doesn't happen to cover.
 """
 import os
+import sys
 
 bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 
@@ -55,3 +56,17 @@ def post_fork(server, worker):
     cache_dir = f"/tmp/numba-cache-{worker.pid}"
     os.makedirs(cache_dir, exist_ok=True)
     os.environ["NUMBA_CACHE_DIR"] = cache_dir
+
+
+def on_starting(server):
+    # A -w/--workers flag on the actual start command overrides workers=1
+    # above silently - gunicorn always lets the CLI win over the config file.
+    # That exact silent override is what kept this instance running 2 workers
+    # for a full deploy cycle after this file said 1, and cost a real OOM
+    # kill on the next upload. Printed here, in on_starting, because this
+    # runs after gunicorn has merged CLI flags into the final config - it
+    # reports what will actually run, not what this file merely asked for.
+    effective = server.cfg.workers
+    print(f"[gunicorn.conf.py] effective worker count: {effective}"
+          + ("" if effective == 1 else " <-- expected 1, check the start command for a stray -w/--workers flag"),
+          file=sys.stderr, flush=True)
