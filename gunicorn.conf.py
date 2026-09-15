@@ -51,6 +51,16 @@ preload_app = True
 
 os.environ.setdefault("NUMBA_CACHE_DIR", "/tmp/numba-cache-master")
 
+# LLVM's optimizing codegen is itself memory-hungry while it runs - on an
+# instance whose baseline (flask+numpy+scipy+librosa, fully warmed, no
+# request in flight) already measured at 503 MiB of this plan's 512 MiB
+# limit, that transient compile-time spike is enough by itself to trigger an
+# OOM kill during warmup, before a single request is ever served. Opt level 1
+# produces slightly less optimized machine code (a modest runtime cost on an
+# already CPU-throttled instance) in exchange for a smaller compile-time
+# footprint - an acceptable trade when the alternative is not booting at all.
+os.environ.setdefault("NUMBA_OPT", "1")
+
 
 def post_fork(server, worker):
     cache_dir = f"/tmp/numba-cache-{worker.pid}"
