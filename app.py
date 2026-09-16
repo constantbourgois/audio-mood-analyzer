@@ -9,12 +9,7 @@ from viz import instrument_track_svg
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_EXTENSIONS = {"wav", "flac", "ogg", "mp3", "m4a"}
-# Not removed entirely: this endpoint is a public URL with no login, so an
-# unbounded upload would let anyone (or a bot) send an arbitrarily large
-# request body and fill the disk or tie up a worker. 500 MB comfortably
-# covers any realistic audio file - well over an hour of uncompressed
-# stereo WAV - while still stopping that trivial abuse case.
-MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500 MB
+MAX_CONTENT_LENGTH = 40 * 1024 * 1024  # 40 MB
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-not-secret")
