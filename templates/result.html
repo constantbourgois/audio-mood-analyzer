@@ -1,185 +1,37 @@
 {% extends "base.html" %}
-{% block title %}{{ result.filename }} — Audio Analyser{% endblock %}
+{% block title %}{{ filename }} — Audio Analyser{% endblock %}
 {% block content %}
-  <h1>{{ result.filename }}</h1>
-  <p class="subtitle">{{ result.duration_sec }} s
-    {% if added_to_library %} · added to the library ({{ library_count }} track(s)){% endif %}
-  </p>
+  <h1>{{ filename }}</h1>
+  <p class="subtitle">{{ timeline.duration_sec | mmss }}</p>
 
   <div class="card">
-    <div class="mood-banner">{{ result.mood_label }}</div>
-
-    <div class="metrics">
-      <div class="metric">
-        <div class="label">Key</div>
-        <div class="value">{{ result.key }} {{ result.mode }}</div>
-      </div>
-      <div class="metric">
-        <div class="label">Tempo</div>
-        <div class="value">{{ result.tempo_bpm }} BPM</div>
-      </div>
-      <div class="metric">
-        <div class="label">Key confidence</div>
-        <div class="value">{{ (result.key_confidence * 100) | round | int }}%</div>
-      </div>
-      <div class="metric">
-        <div class="label">Valence / Energy</div>
-        <div class="value">{{ result.valence }} / {{ result.arousal }}</div>
-      </div>
-    </div>
-
-    {% if result.modal_candidates %}
-      <h2 style="margin-top: 1.5rem;">Mode</h2>
-      <ul class="modes">
-        {% for candidate in result.modal_candidates %}
-          <li{% if loop.first %} class="best"{% endif %}>
-            <span>{{ candidate.label }}</span>
-            <span class="muted">{{ (candidate.confidence * 100) | round | int }}%</span>
-          </li>
-        {% endfor %}
-      </ul>
-      <p class="note">
-        All seven modes share the same notes, so telling them apart comes down
-        to deciding which note is the tonic — often hanging on a single degree
-        (the 7th for Ionian vs Mixolydian, the 6th for Dorian vs Aeolian...).
-        The top three readings are shown with their scores: if the first two
-        are close, the analysis has not really decided.
-      </p>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <h2>Structure</h2>
-    {% if sections %}
-      <p class="muted">
-        {{ sections | length }} sections · {{ song_map.beats_per_measure }} beats/bar (estimated) ·
-        {{ song_map.measure_count }} bars · {{ song_map.duration_sec | mmss }} · {{ song_map.tempo_bpm }} BPM
-      </p>
-
-      <div class="section-row">{{ section_svg | safe }}</div>
-
-      <ol class="timeline">
-        {% for section in sections %}
-          <li>
-            <span class="timeline-index">{{ section.index }}</span>
-            <span class="timeline-body">
-              <span class="timeline-role">{{ section.role }}</span>
-              <span class="timeline-family">group {{ section.family }}</span>
-              <span class="timeline-parts">{{ section.parts_label }}</span>
-            </span>
-            <span class="timeline-when muted">
-              {% if section.start_measure %}bar {{ section.start_measure }}–{{ section.end_measure }} · {% endif %}
-              {{ section.start_sec | mmss }}–{{ section.end_sec | mmss }}
-            </span>
-          </li>
-        {% endfor %}
-      </ol>
-
-      <p class="note">
-        The boundaries and the groups are measured: sections are cut where the
-        texture of the recording changes, and sections that resemble each other
-        share a group letter — so "group B appears three times" is data. The
-        <em>names</em> are a guess on top of that: nothing in the signal says
-        "chorus", so a quiet opening is called an intro, the loudest repeated
-        group the chorus, and so on. On an unusual arrangement the names can be
-        wrong even when the boundaries are right — that is what the group
-        letter is there for.
-      </p>
-    {% else %}
-      <p class="muted">
-        Too short, or too few beats detected, to talk about structure.
-      </p>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <h2>Layers over time</h2>
-    <div class="song-map">
-      <div class="grid-row">{{ grid_svg | safe }}</div>
-
-      {% if chords %}
-        <div class="track-row">
-          <div class="track-label"><strong>Chords (estimated)</strong></div>
-          <div class="track-plot">{{ chord_svg | safe }}</div>
-        </div>
-      {% endif %}
+    <h2>Instruments</h2>
+    {% if timeline.tracks %}
+      <p class="muted">{{ timeline.tracks | length }} recognised, in order of first entrance</p>
 
       {% for track, svg in track_svgs %}
-        <div class="track-row">
-          <div class="track-label">
-            <span class="track-dot track-dot-{{ track.key }}"></span>
-            <strong>{{ track.label }}</strong>
-            {% if track.entry_measure %}
-              <span class="track-entry">enters at bar {{ track.entry_measure }} ({{ track.entry_time | mmss }})</span>
-            {% else %}
-              <span class="track-entry">no distinct presence detected</span>
-            {% endif %}
+        <div class="instrument-row">
+          <div class="instrument-label">
+            <strong>{{ track.name | capitalize }}</strong>
+            <span class="instrument-when">
+              {% for start, end in track.intervals %}
+                {{ start | mmss }}–{{ end | mmss }}{% if not loop.last %}, {% endif %}
+              {% endfor %}
+            </span>
           </div>
-          <div class="track-plot">{{ svg | safe }}</div>
+          {{ svg | safe }}
         </div>
       {% endfor %}
-    </div>
 
-    <p class="note">
-      Lightweight approach, no source separation: these layers are texture cues
-      (frequency bands plus harmonic/percussive components), not named
-      instruments. A melody played by a solo instrument (guitar, sax...) can be
-      detected as "vocals".
-    </p>
-  </div>
-
-  <div class="card">
-    <h2>Chords</h2>
-    {% if chords %}
-      <p class="muted">{{ chords | length }} segments detected</p>
-
-      {% if top_chords %}
-        <div class="chord-chips">
-          {% for chord in top_chords %}
-            <span class="chord-chip{% if chord.label.endswith('m') %} minor{% endif %}">
-              {{ chord.label }} <span class="muted">{{ chord.seconds }}s</span>
-            </span>
-          {% endfor %}
-        </div>
-      {% endif %}
-
-      <ul class="similar" style="margin-top: 1rem;">
-        {% for chord in chords %}
-          <li>
-            <span>{{ chord.label }}</span>
-            <span class="muted">
-              {% if chord.measure %}bar {{ chord.measure }} · {% endif %}{{ chord.start_sec | mmss }}
-            </span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="muted">
-        No chord could be identified with enough confidence (too noisy, too
-        percussive, or no clear harmony).
+      <p class="note">
+        A block marks a span where the model was confident enough to name the
+        instrument; a brief dropout (a quiet passage, a missed frame) is
+        bridged rather than shown as the instrument leaving and coming back.
       </p>
-    {% endif %}
-
-    <p class="note">
-      Template matching against plain triads, no trained model: only major and
-      minor chords are recognised, so a seventh or an extended chord is reduced
-      to the nearest triad. The segmentation follows the detected beat grid — if
-      the tempo is wrong, the chord boundaries are wrong with it. Check by ear.
-    </p>
-  </div>
-
-  <div class="card">
-    <h2>Similar tracks (local library)</h2>
-    {% if similar %}
-      <ul class="similar">
-        {% for s in similar %}
-          <li><span>{{ s.filename }}</span><span>{{ (s.similarity * 100) | round | int }}%</span></li>
-        {% endfor %}
-      </ul>
     {% else %}
       <p class="muted">
-        No other track in your library yet. Tick "Add to my library" on other
-        files to be able to compare them.
+        No instrument was recognised with enough confidence in this
+        recording.
       </p>
     {% endif %}
   </div>

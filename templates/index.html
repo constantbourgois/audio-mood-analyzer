@@ -2,27 +2,22 @@
 {% block title %}Audio Analyser{% endblock %}
 {% block content %}
   <h1>Audio Analyser</h1>
-  <p class="subtitle">Key, mode, tempo, chords, structure and mood of a recording (guitar, vocals, ...).</p>
+  <p class="subtitle">Which instruments play, and when, in a recording (guitar, vocals, ...).</p>
 
   <div class="card">
     <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
       <label for="audio_file">Audio file (.wav, .flac, .ogg, .mp3, .m4a)</label>
       <input type="file" id="audio_file" name="audio_file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" required>
 
-      <div class="checkbox-row">
-        <input type="checkbox" id="add_to_library" name="add_to_library">
-        <label for="add_to_library">Add this file to my library (to compare future tracks against)</label>
-      </div>
-
       <button type="submit">Analyse</button>
     </form>
   </div>
 
   <p class="note">
-    Key and tempo come from classic signal-processing methods and remain
-    approximations. The mood is a heuristic, not a trained model. Similar-track
-    search only compares against files in your own local library
-    (<code>library/</code>) — there is no connection to an external music
-    database.
+    Instruments are recognised by YAMNet (a general-purpose audio tagger), not
+    by ear: a quiet instrument under a loud one is often missed, and a
+    distorted guitar can read as a synthesizer. Only instrument recognition
+    runs here for now — key, tempo, mode, chords and song structure are
+    disabled on this deployment to fit a memory-limited free hosting plan.
   </p>
 {% endblock %}

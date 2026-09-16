@@ -4,64 +4,25 @@ import tempfile
 from flask import Flask, render_template, request, flash, redirect, url_for
 from werkzeug.utils import secure_filename
 
-from analysis import load_audio, analyze_loaded, find_similar
-from chords import estimate_chords, summarize_chords
-from song_map import build_song_map
-from structure import detect_sections
-from viz import chord_ribbon_svg, measure_grid_svg, section_ribbon_svg, track_svg
+from instruments import build_timeline, load_audio_lite
+from viz import instrument_track_svg
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LIBRARY_DIR = os.path.join(BASE_DIR, "library")
 ALLOWED_EXTENSIONS = {"wav", "flac", "ogg", "mp3", "m4a"}
-MAX_CONTENT_LENGTH = 30 * 1024 * 1024  # 30 Mo
+MAX_CONTENT_LENGTH = 30 * 1024 * 1024  # 30 MB
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-not-secret")
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
-os.makedirs(LIBRARY_DIR, exist_ok=True)
-
-
-def _warmup_numba():
-    """Force librosa's numba-JIT'd functions (chroma, mfcc, beat tracking,
-    hpss, pyin, and librosa.load's own lazy-loaded guvectorize) to compile
-    now, at process boot, instead of on a live request. On a slow/throttled
-    CPU that first-ever compile can itself take longer than a request
-    timeout — this is what caused production WORKER TIMEOUT crashes.
-
-    Deliberately does NOT call estimate_chords, detect_sections, or the
-    instrument tagger. chroma/mfcc/beat_track/hpss/pyin - the actual
-    numba-jitted primitives - are already exercised below via analyze_loaded
-    and build_song_map; chords and structure only add plain numpy/sklearn
-    work on top of them, nothing that benefits from warming. Reaching into
-    the tagger here cost a production deploy: loading ai-edge-litert added
-    real minutes to master startup on Render's throttled CPU, long enough
-    that the port was never detected open before the platform gave up and
-    killed the instance. Loading it lazily, in a worker, on whichever
-    request first needs it, keeps that cost off the boot path entirely."""
-    import sys
-
-    import numpy as np
-    import soundfile as sf
-
-    from analysis import SAMPLE_RATE
-
-    try:
-        t = np.linspace(0, 2.0, int(SAMPLE_RATE * 2.0), endpoint=False)
-        y = (0.2 * np.sin(2 * np.pi * 220.0 * t)).astype(np.float32)
-        with tempfile.NamedTemporaryFile(suffix=".wav") as tmp:
-            sf.write(tmp.name, y, SAMPLE_RATE)
-            warm_y, warm_sr = load_audio(tmp.name)
-        analyze_loaded(warm_y, warm_sr, "warmup.wav")
-        build_song_map(warm_y, warm_sr)
-    except Exception as exc:
-        # Never block startup on the warm-up, but say so loudly: silence here
-        # means compilation lands on the first real request instead, which is
-        # what the timeout crashes looked like.
-        print(f"[warmup] skipped, JIT will compile on first request: {exc!r}", file=sys.stderr)
-
-
-_warmup_numba()
+# Tempo/key/mode/chords/structure/song-map/similar-tracks (analysis.py,
+# chords.py, song_map.py, structure.py) are deliberately not wired up here.
+# That whole pipeline runs through librosa, and librosa's dependency chain
+# (scipy, numba/LLVM, scikit-learn) alone measured at ~500 MB resident once
+# warmed - almost the entire 512 MB ceiling of Render's free tier, before a
+# single request is served. The code and its tests are kept in the repo for
+# a host with more memory; this route only ever imports instruments.py,
+# which needs nothing heavier than numpy and the YAMNet interpreter.
 
 
 @app.template_filter("mmss")
@@ -100,59 +61,30 @@ def analyze():
         return redirect(url_for("index"))
 
     filename = secure_filename(file.filename)
-    add_to_library = request.form.get("add_to_library") == "on"
-
-    if add_to_library:
-        save_path = os.path.join(LIBRARY_DIR, filename)
-        file.save(save_path)
-        tmp_path = save_path
-        cleanup = False
-    else:
-        suffix = os.path.splitext(filename)[1]
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-        file.save(tmp.name)
-        tmp_path = tmp.name
-        cleanup = True
+    suffix = os.path.splitext(filename)[1]
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    file.save(tmp.name)
 
     try:
-        y, sr = load_audio(tmp_path)
-        result, vec = analyze_loaded(y, sr, filename)
-        song_map = build_song_map(y, sr)
-        chords = estimate_chords(y, sr, song_map.beat_times, song_map.measure_times)
-        sections = detect_sections(y, sr, song_map.beat_times, song_map.measure_times, song_map.tracks)
+        y, sr = load_audio_lite(tmp.name)
+        timeline = build_timeline(y, sr)
     except Exception as exc:
         flash(f"Could not analyse this file: {exc}")
-        if cleanup and os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        os.remove(tmp.name)
         return redirect(url_for("index"))
 
-    similar = find_similar(vec, LIBRARY_DIR, exclude_filename=filename if add_to_library else None)
+    os.remove(tmp.name)
 
-    if cleanup and os.path.exists(tmp_path):
-        os.remove(tmp_path)
-
-    grid_svg = measure_grid_svg(song_map.measure_times, song_map.duration_sec, song_map.beats_per_measure)
-    track_svgs = [(t, track_svg(t, song_map.duration_sec, song_map.measure_times)) for t in song_map.tracks]
-    chord_svg = chord_ribbon_svg(chords, song_map.duration_sec, song_map.measure_times)
-    section_svg = section_ribbon_svg(sections, song_map.duration_sec)
+    track_svgs = [
+        (track, instrument_track_svg(index, track.intervals, timeline.duration_sec))
+        for index, track in enumerate(timeline.tracks)
+    ]
 
     return render_template(
         "result.html",
-        result=result,
-        similar=similar,
-        added_to_library=add_to_library,
-        library_count=len([
-            f for f in os.listdir(LIBRARY_DIR)
-            if os.path.splitext(f)[1].lower().lstrip(".") in ALLOWED_EXTENSIONS
-        ]),
-        song_map=song_map,
-        grid_svg=grid_svg,
+        filename=filename,
+        timeline=timeline,
         track_svgs=track_svgs,
-        chords=chords,
-        chord_svg=chord_svg,
-        top_chords=summarize_chords(chords),
-        sections=sections,
-        section_svg=section_svg,
     )
 
 

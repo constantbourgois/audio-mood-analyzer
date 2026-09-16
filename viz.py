@@ -111,6 +111,35 @@ def section_ribbon_svg(sections: list, duration: float) -> str:
     )
 
 
+INSTRUMENT_TRACK_HEIGHT = 34
+
+
+def instrument_track_svg(index: int, intervals: list, duration: float) -> str:
+    """One row: filled blocks where this instrument was recognised as
+    present, on the same 0..duration scale as every other row so they line
+    up. Colour cycles through the same validated 4-colour set used for
+    section blocks - there is no fixed mapping from instrument to colour, so
+    reusing that set (rather than validating a new one) is enough here."""
+    h = INSTRUMENT_TRACK_HEIGHT
+    slot = index % SECTION_FAMILY_SLOTS
+    parts = []
+    for start, end in intervals:
+        x1 = _x(start, duration)
+        x2 = _x(end, duration)
+        width = max(0.0, x2 - x1)
+        if width <= 0:
+            continue
+        parts.append(
+            f'<rect x="{x1:.1f}" y="2" width="{width:.1f}" height="{h - 4}" rx="4" '
+            f'class="instrument-block instrument-block-{slot}" />'
+        )
+    body = "".join(parts)
+    return (
+        f'<svg viewBox="0 0 {VIEW_WIDTH} {h}" preserveAspectRatio="none" '
+        f'class="instrument-svg" role="img" aria-label="Presence over time">{body}</svg>'
+    )
+
+
 def track_svg(track, duration: float, measure_times: list) -> str:
     h = TRACK_HEIGHT
     margin = 4

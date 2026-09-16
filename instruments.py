@@ -180,11 +180,123 @@ def is_available() -> bool:
 
 
 def to_model_rate(y: np.ndarray, sr: int) -> np.ndarray:
+    """Resample to the model's fixed 16 kHz with plain numpy interpolation
+    rather than librosa.resample - librosa pulls in scipy and numba, whose
+    import and JIT-compile costs alone (~250 MB, measured) leave almost none
+    of a 512 MB instance's memory for the rest of the process. Linear
+    interpolation aliases more than librosa's polyphase/sinc resamplers, a
+    real accuracy cost on cymbals and other high-frequency content, but
+    YAMNet's classification is tolerant enough of it that this is the better
+    trade for a memory-constrained deployment."""
     if sr == SAMPLE_RATE:
         return y
-    import librosa
+    duration = len(y) / sr
+    n_target = max(1, int(round(duration * SAMPLE_RATE)))
+    x_old = np.linspace(0.0, duration, num=len(y), endpoint=False)
+    x_new = np.linspace(0.0, duration, num=n_target, endpoint=False)
+    return np.interp(x_new, x_old, y).astype(np.float32)
 
-    return librosa.resample(y=y, orig_sr=sr, target_sr=SAMPLE_RATE)
+
+def load_audio_lite(path: str) -> tuple[np.ndarray, int]:
+    """Load audio without importing librosa: soundfile reads wav/flac/ogg
+    natively; mp3/m4a fall back to audioread (needs ffmpeg on the host -
+    the same requirement already documented for those formats)."""
+    import soundfile as sf
+
+    try:
+        y, sr = sf.read(path, dtype="float32", always_2d=False)
+    except Exception:
+        y, sr = _load_via_audioread(path)
+    if y.ndim > 1:
+        y = y.mean(axis=1)
+    return y.astype(np.float32), sr
+
+
+def _load_via_audioread(path: str) -> tuple[np.ndarray, int]:
+    import audioread
+
+    with audioread.audio_open(path) as f:
+        sr = f.samplerate
+        channels = f.channels
+        buffers = [np.frombuffer(buf, dtype=np.int16) for buf in f]
+    raw = np.concatenate(buffers) if buffers else np.zeros(0, dtype=np.int16)
+    if channels > 1:
+        raw = raw.reshape(-1, channels)
+    return raw.astype(np.float32) / 32768.0, sr
+
+
+# A dropout shorter than this is bridged rather than read as the instrument
+# leaving and re-entering - a quiet passage or one missed frame shouldn't
+# fragment a sustained part into several entries.
+GAP_MERGE_SEC = 2.0
+# A run shorter than this is treated as noise, not a real entrance.
+MIN_RUN_SEC = 1.0
+
+
+@dataclass
+class InstrumentTrack:
+    name: str
+    intervals: list   # [(start_sec, end_sec), ...], each rounded to 0.01s
+
+
+@dataclass
+class InstrumentTimeline:
+    duration_sec: float
+    tracks: list   # InstrumentTrack, ordered by first entrance
+
+
+def _runs_to_intervals(active: np.ndarray, frame_sec: float, duration: float) -> list:
+    n = len(active)
+    gap_frames = max(1, int(round(GAP_MERGE_SEC / frame_sec)))
+    merged = active.copy()
+    i = 0
+    while i < n:
+        if not merged[i]:
+            j = i
+            while j < n and not merged[j]:
+                j += 1
+            # Only bridge a gap that has a run on both sides - leading
+            # silence before the first entrance and trailing silence after
+            # the last exit are not "dropouts".
+            if i > 0 and j < n and (j - i) <= gap_frames:
+                merged[i:j] = True
+            i = j
+        else:
+            i += 1
+
+    intervals = []
+    i = 0
+    while i < n:
+        if merged[i]:
+            j = i
+            while j < n and merged[j]:
+                j += 1
+            start, end = i * frame_sec, min(j * frame_sec, duration)
+            if end - start >= MIN_RUN_SEC:
+                intervals.append((round(start, 2), round(end, 2)))
+            i = j
+        else:
+            i += 1
+    return intervals
+
+
+def build_timeline(y: np.ndarray, sr: int) -> InstrumentTimeline:
+    """When each recognised instrument enters and leaves, across the whole
+    track. This is the lightweight alternative to structure.py's section
+    detection: no beat tracking, no MFCC clustering, just the tagger's own
+    frame-by-frame scores turned into on/off intervals - so it stays on the
+    librosa-free path this function's callers depend on."""
+    duration = len(y) / sr
+    scores, groups, frame_sec = detect_instruments(y, sr)
+    tracks = []
+    if scores.size:
+        for group_index, name in enumerate(groups):
+            active = scores[:, group_index] >= MIN_SCORE
+            intervals = _runs_to_intervals(active, frame_sec, duration)
+            if intervals:
+                tracks.append(InstrumentTrack(name=name, intervals=intervals))
+        tracks.sort(key=lambda t: t.intervals[0][0])
+    return InstrumentTimeline(duration_sec=round(duration, 1), tracks=tracks)
 
 
 def detect_instruments(y: np.ndarray, sr: int):

@@ -1,13 +1,19 @@
+import sys
+
 import numpy as np
 import pytest
+import soundfile as sf
 
 import instruments
 from instruments import (
     INSTRUMENT_GROUPS,
     InstrumentScore,
+    build_timeline,
     detect_instruments,
     instruments_between,
+    load_audio_lite,
     summarize,
+    to_model_rate,
 )
 
 needs_model = pytest.mark.skipif(
@@ -152,3 +158,113 @@ def test_scores_stay_within_range():
     for item in summarize(scores, groups):
         assert isinstance(item, InstrumentScore)
         assert 0.0 <= item.score <= 1.0
+
+
+def test_to_model_rate_resamples_correctly():
+    sr = 22050
+    y = np.zeros(sr * 2, dtype=np.float32)
+    resampled = to_model_rate(y, sr)
+    assert resampled.shape[0] == pytest.approx(instruments.SAMPLE_RATE * 2, abs=2)
+
+
+def test_app_import_does_not_pull_in_librosa_or_scipy():
+    """The whole point of the instruments-only rewrite: app.py's import chain
+    must never load librosa/scipy/numba/scikit-learn, or the ~450 MB this
+    measured saving disappears. Runs in a fresh subprocess: other test
+    modules in this suite legitimately import librosa for the dormant
+    heavy-analysis code (analysis.py, chords.py, song_map.py, structure.py),
+    which would poison sys.modules for an in-process check."""
+    import subprocess
+    from pathlib import Path
+
+    code = (
+        "import sys\n"
+        "import app\n"
+        "heavy = [m for m in ('librosa', 'scipy', 'numba', 'sklearn') if m in sys.modules]\n"
+        "assert not heavy, f'app.py pulled in: {heavy}'\n"
+    )
+    repo_root = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=str(repo_root), capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_to_model_rate_is_a_passthrough_at_the_model_rate():
+    y = np.arange(10, dtype=np.float32)
+    assert np.array_equal(to_model_rate(y, instruments.SAMPLE_RATE), y)
+
+
+def test_load_audio_lite_reads_a_wav_file(tmp_path):
+    sr = 44100
+    t = np.linspace(0, 1.0, sr, endpoint=False)
+    y = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    path = tmp_path / "tone.wav"
+    sf.write(str(path), y, sr)
+
+    loaded_y, loaded_sr = load_audio_lite(str(path))
+    assert loaded_sr == sr
+    assert loaded_y.shape[0] == sr
+    assert loaded_y.dtype == np.float32
+
+
+def test_load_audio_lite_downmixes_stereo_to_mono(tmp_path):
+    sr = 22050
+    stereo = np.zeros((sr, 2), dtype=np.float32)
+    stereo[:, 0] = 0.5
+    stereo[:, 1] = -0.5
+    path = tmp_path / "stereo.wav"
+    sf.write(str(path), stereo, sr)
+
+    y, loaded_sr = load_audio_lite(str(path))
+    assert loaded_sr == sr
+    assert y.ndim == 1
+    assert y.shape[0] == sr
+    assert np.allclose(y, 0.0, atol=1e-6)   # +0.5 and -0.5 average out
+
+
+def test_runs_to_intervals_bridges_short_gaps_and_drops_blips():
+    frame_sec = 1.0
+    # 5 True frames, a 1-frame dropout, then 3 more True frames: should merge
+    # into a single interval since the gap is well under GAP_MERGE_SEC.
+    active = np.array([True] * 5 + [False] + [True] * 3)
+    intervals = instruments._runs_to_intervals(active, frame_sec, duration=9.0)
+    assert intervals == [(0.0, 9.0)]
+
+    # A single frame shorter than MIN_RUN_SEC is noise, not a real entrance.
+    short_frame_sec = 0.5
+    blip = np.array([False, False, True, False, False])
+    assert instruments._runs_to_intervals(blip, short_frame_sec, duration=2.5) == []
+
+
+def test_runs_to_intervals_does_not_bridge_leading_or_trailing_silence():
+    frame_sec = 1.0
+    # Leading silence before the only run must not become part of the interval.
+    active = np.array([False, False, True, True, True])
+    intervals = instruments._runs_to_intervals(active, frame_sec, duration=5.0)
+    assert intervals == [(2.0, 5.0)]
+
+
+@needs_model
+def test_build_timeline_orders_tracks_by_first_entrance():
+    sr = 16000
+    rng = np.random.default_rng(2)
+    t = np.linspace(0, 6.0, sr * 6, endpoint=False)
+    mix = sum(np.sin(2 * np.pi * f * t) for f in (261.63, 329.63, 392.00)) / 3
+    mix = mix * (0.6 + 0.4 * np.sin(2 * np.pi * 2.0 * t) ** 2)
+    mix = mix + 0.8 * np.sin(2 * np.pi * 130.81 * t)
+    hits = (np.sin(2 * np.pi * 2.0 * t) > 0.95).astype(float)
+    mix = mix + 0.6 * rng.normal(size=t.shape) * hits
+    y = (0.45 * mix / 2.2).astype(np.float32)
+
+    timeline = build_timeline(y, sr)
+    assert timeline.duration_sec == pytest.approx(6.0, abs=0.1)
+    starts = [track.intervals[0][0] for track in timeline.tracks]
+    assert starts == sorted(starts)
+
+
+def test_build_timeline_on_silence_has_no_tracks():
+    sr = 16000
+    y = np.zeros(sr * 3, dtype=np.float32)
+    timeline = build_timeline(y, sr)
+    assert timeline.tracks == []

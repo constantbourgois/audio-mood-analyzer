@@ -1,9 +1,7 @@
 import io
-import os
 
 import pytest
 
-from app import LIBRARY_DIR
 from app import app as flask_app
 
 
@@ -38,21 +36,5 @@ def test_analyze_valid_wav_returns_result_page(client, sample_wav_bytes):
     resp = client.post("/analyze", data=data, content_type="multipart/form-data")
     assert resp.status_code == 200
     body = resp.data.decode("utf-8")
-    assert "mood-banner" in body
-    assert "Structure" in body
-
-
-def test_analyze_add_to_library_persists_file(client, sample_wav_bytes):
-    filename = "pytest_library_test.wav"
-    saved_path = os.path.join(LIBRARY_DIR, filename)
-    data = {
-        "audio_file": (sample_wav_bytes, filename),
-        "add_to_library": "on",
-    }
-    try:
-        resp = client.post("/analyze", data=data, content_type="multipart/form-data")
-        assert resp.status_code == 200
-        assert os.path.exists(saved_path)
-    finally:
-        if os.path.exists(saved_path):
-            os.remove(saved_path)
+    assert "Instruments" in body
+    assert "pytest_sample.wav" in body

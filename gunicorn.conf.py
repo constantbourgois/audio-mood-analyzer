@@ -7,76 +7,35 @@ bare `gunicorn app:app` (as Render's default start command does) would
 otherwise fall back to binding 127.0.0.1:8000 — unreachable, so the platform's
 port scan finds nothing — and to the default 30s timeout.
 
-librosa relies on numba's on-disk JIT cache, and compiling functions like
-pyin's Viterbi decoder or librosa.load's own guvectorize is itself slow —
-slow enough on a throttled CPU to exceed a request timeout by itself.
-
-preload_app forces the app (and app.py's numba warm-up call) to import once,
-single-threaded, in the master process before any worker forks. Forked
-workers then inherit the already-compiled code via copy-on-write memory
-instead of each re-compiling it on their own first request — which was both
-the source of WORKER TIMEOUT crashes and, when two workers compiled
-concurrently, capable of corrupting the shared on-disk cache and crashing a
-worker with SIGSEGV.
-
-Each worker still gets its own private cache directory post-fork, as a
-safety net for any signature the warm-up doesn't happen to cover.
+app.py no longer imports librosa/scipy/numba at all (see app.py's own
+comment): the deployed route only does instrument recognition, which needs
+nothing heavier than numpy and a small TFLite interpreter. That stack
+measured at ~65 MB fully warmed, against ~500 MB for the previous
+librosa-based pipeline on this plan's 512 MiB limit — the actual cause of
+this app's earlier OOM crashes. With that much headroom, two workers is
+worth having back for real concurrency, at essentially no OOM risk.
 """
 import os
 import sys
 
 bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 
-# One worker. Two used to run on the theory that preload_app's copy-on-write
-# sharing made a second worker cheap - wrong in practice, and a real upload
-# proved it: CPython's refcounting writes to the header of every object a
-# worker merely touches while executing, including shared modules and code
-# objects, which steadily un-shares those "shared" pages. Render's metrics on
-# the crash that prompted this showed memory climbing to and pinning at
-# exactly this instance's 512 MiB limit for several minutes before the kernel
-# killed the process - consistent with two workers each independently
-# carrying close to the full ~310 MB baseline (620 MB alone, before either
-# one's own request data) rather than truly sharing it. The instance's CPU
-# limit is 0.15 of a core anyway, too little for two workers to usefully
-# overlap work. One worker trades away serving a second request while the
-# first (a request that already takes tens of seconds) is in flight, which
-# is an acceptable loss for a personal single-user tool against the
-# alternative of an OOM kill.
-workers = 1
+workers = 2
 
-# A few minutes of audio takes far longer than the 30s default to analyse.
-timeout = 300
+# Loading a big file and running it through the tagger is fast now that
+# nothing here is JIT-compiled, but a large upload still takes real time.
+timeout = 120
 
 preload_app = True
 
-os.environ.setdefault("NUMBA_CACHE_DIR", "/tmp/numba-cache-master")
-
-# LLVM's optimizing codegen is itself memory-hungry while it runs - on an
-# instance whose baseline (flask+numpy+scipy+librosa, fully warmed, no
-# request in flight) already measured at 503 MiB of this plan's 512 MiB
-# limit, that transient compile-time spike is enough by itself to trigger an
-# OOM kill during warmup, before a single request is ever served. Opt level 1
-# produces slightly less optimized machine code (a modest runtime cost on an
-# already CPU-throttled instance) in exchange for a smaller compile-time
-# footprint - an acceptable trade when the alternative is not booting at all.
-os.environ.setdefault("NUMBA_OPT", "1")
-
-
-def post_fork(server, worker):
-    cache_dir = f"/tmp/numba-cache-{worker.pid}"
-    os.makedirs(cache_dir, exist_ok=True)
-    os.environ["NUMBA_CACHE_DIR"] = cache_dir
-
 
 def on_starting(server):
-    # A -w/--workers flag on the actual start command overrides workers=1
-    # above silently - gunicorn always lets the CLI win over the config file.
-    # That exact silent override is what kept this instance running 2 workers
-    # for a full deploy cycle after this file said 1, and cost a real OOM
-    # kill on the next upload. Printed here, in on_starting, because this
-    # runs after gunicorn has merged CLI flags into the final config - it
-    # reports what will actually run, not what this file merely asked for.
+    # Kept from when this mattered a lot more: a -w/--workers flag on the
+    # actual start command silently overrides the setting above (gunicorn
+    # always lets the CLI win over the config file), which is exactly what
+    # kept a previous deploy running 2 workers when this file said 1. Cheap
+    # to leave in as a sanity check even now that either count is safe.
     effective = server.cfg.workers
     print(f"[gunicorn.conf.py] effective worker count: {effective}"
-          + ("" if effective == 1 else " <-- expected 1, check the start command for a stray -w/--workers flag"),
+          + ("" if effective == workers else f" <-- expected {workers}, check the start command for a stray -w/--workers flag"),
           file=sys.stderr, flush=True)
