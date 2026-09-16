@@ -9,7 +9,12 @@ from viz import instrument_track_svg
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_EXTENSIONS = {"wav", "flac", "ogg", "mp3", "m4a"}
-MAX_CONTENT_LENGTH = 30 * 1024 * 1024  # 30 MB
+# 30 MB was set back when the app carried ~500 MB of baseline memory on a
+# 512 MB instance and every extra MB of a loaded file mattered. Now that the
+# instruments-only path idles at ~65 MB, 100 MB (a full 9-10 minute CD-quality
+# stereo WAV, far more for anything compressed) leaves comfortable headroom
+# even if both gunicorn workers happened to load a near-max file at once.
+MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100 MB
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-not-secret")
