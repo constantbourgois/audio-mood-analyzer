@@ -180,21 +180,27 @@ def is_available() -> bool:
 
 
 def to_model_rate(y: np.ndarray, sr: int) -> np.ndarray:
-    """Resample to the model's fixed 16 kHz with plain numpy interpolation
-    rather than librosa.resample - librosa pulls in scipy and numba, whose
-    import and JIT-compile costs alone (~250 MB, measured) leave almost none
-    of a 512 MB instance's memory for the rest of the process. Linear
-    interpolation aliases more than librosa's polyphase/sinc resamplers, a
-    real accuracy cost on cymbals and other high-frequency content, but
-    YAMNet's classification is tolerant enough of it that this is the better
-    trade for a memory-constrained deployment."""
+    """Resample to the model's fixed 16 kHz.
+
+    Uses soxr (a 0.4 MB binding to libsoxr, no scipy/numba behind it) rather
+    than librosa.resample, whose import chain costs ~250 MB on a 512 MB
+    instance.
+
+    It must NOT be plain np.interp, which is what this did briefly and which
+    silently corrupted every real recording: linear interpolation applies no
+    anti-aliasing filter, so going 44.1 kHz -> 16 kHz folds everything above
+    8 kHz back down into the audible range. Measured, a 15 kHz tone (cymbal
+    shimmer) came back as a 1 kHz tone at 77% amplitude - a loud note dead in
+    the middle of the musical range that is not in the recording at all - and
+    broadband 9-20 kHz content left 800x more residue than it should. The
+    tagger was being asked to name instruments in audio full of sounds that
+    were never played.
+    """
     if sr == SAMPLE_RATE:
         return y
-    duration = len(y) / sr
-    n_target = max(1, int(round(duration * SAMPLE_RATE)))
-    x_old = np.linspace(0.0, duration, num=len(y), endpoint=False)
-    x_new = np.linspace(0.0, duration, num=n_target, endpoint=False)
-    return np.interp(x_new, x_old, y).astype(np.float32)
+    import soxr
+
+    return soxr.resample(y, sr, SAMPLE_RATE).astype(np.float32)
 
 
 def load_audio_lite(path: str) -> tuple[np.ndarray, int]:

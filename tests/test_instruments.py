@@ -167,6 +167,27 @@ def test_to_model_rate_resamples_correctly():
     assert resampled.shape[0] == pytest.approx(instruments.SAMPLE_RATE * 2, abs=2)
 
 
+def test_to_model_rate_filters_out_content_above_the_target_nyquist():
+    """Regression test for a real defect: resampling 44.1 kHz -> 16 kHz with
+    plain linear interpolation applies no anti-aliasing filter, so a 15 kHz
+    cymbal shimmer folded back to a 1 kHz tone at 77% amplitude - a loud note
+    in the middle of the musical range that was never played, fed straight to
+    the tagger. Anything above the 8 kHz target Nyquist must be attenuated,
+    not folded down."""
+    sr = 44100
+    duration = 1.0
+    t = np.linspace(0, duration, int(sr * duration), endpoint=False)
+    y = (0.8 * np.sin(2 * np.pi * 15000 * t)).astype(np.float32)
+
+    resampled = to_model_rate(y, sr)
+
+    # Nothing meaningful should survive: a naive resampler leaves ~0.77 here.
+    assert np.abs(resampled).max() < 0.2, (
+        "content above the target Nyquist survived resampling - "
+        "the resampler is aliasing instead of filtering"
+    )
+
+
 def test_app_import_does_not_pull_in_librosa_or_scipy():
     """The whole point of the instruments-only rewrite: app.py's import chain
     must never load librosa/scipy/numba/scikit-learn, or the ~450 MB this
