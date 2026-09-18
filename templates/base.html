@@ -290,9 +290,9 @@
     .chord-block-minor { fill: var(--c-chord-minor); stroke: var(--c-chord-minor); }
     .chord-label { fill: var(--text); font-size: 16px; font-weight: 600; }
 
-    /* --- Instrument timeline --- */
-    .instrument-row { margin-bottom: 1rem; }
-    .instrument-label {
+    /* --- Layer timeline --- */
+    .layer-row { margin-bottom: 1rem; }
+    .layer-label {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
@@ -301,8 +301,9 @@
       font-size: 0.92rem;
       margin-bottom: 0.35rem;
     }
-    .instrument-when { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
-    .instrument-svg {
+    .layer-when { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+    .layer-hint { color: var(--muted); font-weight: 400; font-size: 0.78rem; margin-left: 0.35rem; }
+    .layer-svg {
       width: 100%;
       height: auto;
       display: block;
@@ -311,11 +312,11 @@
       background: var(--surface-2);
       border: 1px solid var(--border);
     }
-    .instrument-block { fill-opacity: 0.55; stroke-width: 1.5; }
-    .instrument-block-0 { fill: var(--c-percussions); stroke: var(--c-percussions); }
-    .instrument-block-1 { fill: var(--c-basses); stroke: var(--c-basses); }
-    .instrument-block-2 { fill: var(--c-accords); stroke: var(--c-accords); }
-    .instrument-block-3 { fill: var(--c-voix); stroke: var(--c-voix); }
+    .layer-block { fill-opacity: 0.55; stroke-width: 1.5; }
+    .layer-block-0 { fill: var(--c-percussions); stroke: var(--c-percussions); }
+    .layer-block-1 { fill: var(--c-basses); stroke: var(--c-basses); }
+    .layer-block-2 { fill: var(--c-accords); stroke: var(--c-accords); }
+    .layer-block-3 { fill: var(--c-voix); stroke: var(--c-voix); }
 
     @media (max-width: 480px) {
       body { padding: 1.75rem 0.85rem 3rem; }

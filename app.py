@@ -4,8 +4,9 @@ import tempfile
 from flask import Flask, render_template, request, flash, redirect, url_for
 from werkzeug.utils import secure_filename
 
-from instruments import build_timeline, load_audio_lite
-from viz import instrument_track_svg
+from instruments import load_audio_lite
+from layers import analyse_layers
+from viz import layer_track_svg
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ALLOWED_EXTENSIONS = {"wav", "flac", "ogg", "mp3", "m4a"}
@@ -15,14 +16,22 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-not-secret")
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
+# Two pipelines are deliberately not wired up here, for different reasons.
+#
 # Tempo/key/mode/chords/structure/song-map/similar-tracks (analysis.py,
-# chords.py, song_map.py, structure.py) are deliberately not wired up here.
-# That whole pipeline runs through librosa, and librosa's dependency chain
-# (scipy, numba/LLVM, scikit-learn) alone measured at ~500 MB resident once
-# warmed - almost the entire 512 MB ceiling of Render's free tier, before a
-# single request is served. The code and its tests are kept in the repo for
-# a host with more memory; this route only ever imports instruments.py,
-# which needs nothing heavier than numpy and the YAMNet interpreter.
+# chords.py, song_map.py, structure.py) all run through librosa, whose
+# dependency chain (scipy, numba/LLVM, scikit-learn) measured at ~500 MB
+# resident once warmed - almost the entire 512 MB ceiling of this plan,
+# before a single request is served.
+#
+# Instrument NAMING (instruments.py, YAMNet) is left out because it was
+# wrong on real material, not because of its size. Its input front-end
+# spans 125 Hz - 7500 Hz, so an electric bass and a kick drum fall below
+# its lowest bin: on a real track it scored "Bass guitar" at 0.0002 with a
+# bass plainly audible, missed the drums, and reported an acoustic guitar
+# that was not in the recording. layers.py measures register and
+# percussiveness instead, which is what actually distinguishes these parts.
+# Both modules stay in the repo, with their tests, for a bigger host.
 
 
 @app.template_filter("mmss")
@@ -67,7 +76,7 @@ def analyze():
 
     try:
         y, sr = load_audio_lite(tmp.name)
-        timeline = build_timeline(y, sr)
+        layer_map = analyse_layers(y, sr)
     except Exception as exc:
         flash(f"Could not analyse this file: {exc}")
         os.remove(tmp.name)
@@ -75,16 +84,16 @@ def analyze():
 
     os.remove(tmp.name)
 
-    track_svgs = [
-        (track, instrument_track_svg(index, track.intervals, timeline.duration_sec))
-        for index, track in enumerate(timeline.tracks)
+    layer_svgs = [
+        (layer, layer_track_svg(index, layer.intervals, layer_map.duration_sec))
+        for index, layer in enumerate(layer_map.layers)
     ]
 
     return render_template(
         "result.html",
         filename=filename,
-        timeline=timeline,
-        track_svgs=track_svgs,
+        layer_map=layer_map,
+        layer_svgs=layer_svgs,
     )
 
 

@@ -36,5 +36,5 @@ def test_analyze_valid_wav_returns_result_page(client, sample_wav_bytes):
     resp = client.post("/analyze", data=data, content_type="multipart/form-data")
     assert resp.status_code == 200
     body = resp.data.decode("utf-8")
-    assert "Instruments" in body
+    assert "Layers over time" in body
     assert "pytest_sample.wav" in body

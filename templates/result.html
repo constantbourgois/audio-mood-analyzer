@@ -2,19 +2,19 @@
 {% block title %}{{ filename }} — Audio Analyser{% endblock %}
 {% block content %}
   <h1>{{ filename }}</h1>
-  <p class="subtitle">{{ timeline.duration_sec | mmss }}</p>
+  <p class="subtitle">{{ layer_map.duration_sec | mmss }}</p>
 
   <div class="card">
-    <h2>Instruments</h2>
-    {% if timeline.tracks %}
-      <p class="muted">{{ timeline.tracks | length }} recognised, in order of first entrance</p>
+    <h2>Layers over time</h2>
+    {% if layer_map.layers %}
+      <p class="muted">{{ layer_map.layers | length }} found, in order of entrance</p>
 
-      {% for track, svg in track_svgs %}
-        <div class="instrument-row">
-          <div class="instrument-label">
-            <strong>{{ track.name | capitalize }}</strong>
-            <span class="instrument-when">
-              {% for start, end in track.intervals %}
+      {% for layer, svg in layer_svgs %}
+        <div class="layer-row">
+          <div class="layer-label">
+            <strong>{{ layer.label }} <span class="layer-hint">{{ layer.hint }}</span></strong>
+            <span class="layer-when">
+              {% for start, end in layer.intervals %}
                 {{ start | mmss }}–{{ end | mmss }}{% if not loop.last %}, {% endif %}
               {% endfor %}
             </span>
@@ -24,17 +24,23 @@
       {% endfor %}
 
       <p class="note">
-        A block marks a span where the model was confident enough to name the
-        instrument; a brief dropout (a quiet passage, a missed frame) is
-        bridged rather than shown as the instrument leaving and coming back.
+        These are measured from the recording: which part of the frequency
+        range carries energy, and whether that energy sustains or arrives as
+        sharp attacks. A brief dropout is bridged rather than shown as the
+        layer leaving and coming back.
       </p>
     {% else %}
-      <p class="muted">
-        No instrument was recognised with enough confidence in this
-        recording.
-      </p>
+      <p class="muted">Nothing sustained enough to call a layer.</p>
     {% endif %}
   </div>
+
+  <p class="note">
+    Instrument <em>names</em> are deliberately not claimed. "Low end" is
+    something the signal shows; calling it an electric bass rather than a
+    synth bass would be a guess, and a wrong name is worse than an honest
+    register. Tempo, key, chords and song structure are disabled on this
+    deployment — they need far more memory than the free hosting plan has.
+  </p>
 
   <a class="back" href="{{ url_for('index') }}">&larr; Analyse another file</a>
 {% endblock %}

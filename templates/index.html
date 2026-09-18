@@ -2,7 +2,7 @@
 {% block title %}Audio Analyser{% endblock %}
 {% block content %}
   <h1>Audio Analyser</h1>
-  <p class="subtitle">Which instruments play, and when, in a recording (guitar, vocals, ...).</p>
+  <p class="subtitle">Which layers play, and when they enter and leave.</p>
 
   <div class="card">
     <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
@@ -14,10 +14,10 @@
   </div>
 
   <p class="note">
-    Instruments are recognised by YAMNet (a general-purpose audio tagger), not
-    by ear: a quiet instrument under a loud one is often missed, and a
-    distorted guitar can read as a synthesizer. Only instrument recognition
-    runs here for now — key, tempo, mode, chords and song structure are
-    disabled on this deployment to fit a memory-limited free hosting plan.
+    Layers are measured from the signal — frequency register plus whether the
+    sound sustains or arrives as sharp attacks — so bass, drums and sustained
+    harmony are separated without guessing instrument names. Key, tempo, mode,
+    chords and song structure are disabled on this deployment to fit a
+    memory-limited free hosting plan.
   </p>
 {% endblock %}
