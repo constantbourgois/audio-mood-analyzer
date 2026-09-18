@@ -5,13 +5,84 @@
   <p class="subtitle">Which layers play, and when they enter and leave.</p>
 
   <div class="card">
-    <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data">
+    <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data" id="analyse-form">
       <label for="audio_file">Audio file (.wav, .flac, .ogg, .mp3, .m4a)</label>
       <input type="file" id="audio_file" name="audio_file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" required>
 
-      <button type="submit">Analyse</button>
+      <button type="submit" id="analyse-button">Analyse</button>
     </form>
+
+    <div id="progress" class="progress" hidden>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <p class="progress-label"><span id="progress-text">Uploading…</span><span id="progress-time"></span></p>
+    </div>
   </div>
+
+  <script>
+    (function () {
+      var form = document.getElementById("analyse-form");
+      var input = document.getElementById("audio_file");
+      var button = document.getElementById("analyse-button");
+      var box = document.getElementById("progress");
+      var fill = document.getElementById("progress-fill");
+      var text = document.getElementById("progress-text");
+      var clock = document.getElementById("progress-time");
+
+      // Without XHR upload events there is no way to know how far an upload
+      // has got, so leave the plain form submit alone rather than show a bar
+      // that is not measuring anything.
+      if (!window.XMLHttpRequest || !window.FormData || !("upload" in new XMLHttpRequest())) return;
+
+      form.addEventListener("submit", function (event) {
+        if (!input.files || !input.files.length) return;
+        event.preventDefault();
+
+        button.disabled = true;
+        box.hidden = false;
+        var started = Date.now();
+        var timer = setInterval(function () {
+          clock.textContent = Math.round((Date.now() - started) / 1000) + "s";
+        }, 1000);
+
+        var request = new XMLHttpRequest();
+        request.open("POST", form.action);
+
+        request.upload.addEventListener("progress", function (e) {
+          if (!e.lengthComputable) return;
+          var percent = (e.loaded / e.total) * 100;
+          fill.style.width = percent.toFixed(1) + "%";
+          text.textContent = "Uploading… " + Math.round(percent) + "%";
+        });
+
+        // Upload done, analysis running: the server reports no progress, so
+        // the bar goes indeterminate rather than inventing a percentage.
+        request.upload.addEventListener("load", function () {
+          fill.style.width = "100%";
+          box.classList.add("is-working");
+          text.textContent = "Analysing…";
+        });
+
+        request.addEventListener("load", function () {
+          clearInterval(timer);
+          document.open();
+          document.write(request.responseText);
+          document.close();
+        });
+
+        var failed = function () {
+          clearInterval(timer);
+          box.hidden = true;
+          box.classList.remove("is-working");
+          button.disabled = false;
+          form.submit();       // fall back to a normal submit
+        };
+        request.addEventListener("error", failed);
+        request.addEventListener("abort", failed);
+
+        request.send(new FormData(form));
+      });
+    })();
+  </script>
 
   <p class="note">
     Layers are measured from the signal — frequency register plus whether the
