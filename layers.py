@@ -31,7 +31,7 @@ frame is zero-sum, so a bass that plays throughout appears to "leave" the
 moment a synth enters and takes some of the share.
 
 Validated against a real track whose entry times the author supplied by ear
-(bass 0:00, kick+snare 0:03, synth 0:12): detected 0.2 s / 3.1 s / 12.0 s.
+(bass 0:00, kick+snare 0:03, synth 0:12): detected 0.3 s / 3.2 s / 12.0 s.
 
 Named instruments are deliberately NOT claimed here. "Low end" is measured;
 calling it a bass guitar rather than a synth bass would be a guess, and a
@@ -44,12 +44,25 @@ from dataclasses import dataclass, field
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-# Analysis runs at this rate whatever the file's own: 11 kHz of bandwidth is
-# more than the 8 kHz the highest band needs, and halving the sample rate
-# halves the spectrogram, which is the one big allocation here.
-ANALYSIS_RATE = 22050
 FRAME = 2048
 HOP = 1024
+
+# Band edges are fixed in Hz rather than derived from the file's own rate, so
+# "Bright / lead" means the same thing for a 44.1 kHz upload as for a 48 kHz
+# one. Deriving the top edge from sr/2 instead made the layer cover 6-22 kHz
+# or 6-24 kHz depending on the file.
+#
+# This replaced resampling everything to a fixed rate first, which was there
+# on the theory that it shrank the spectrogram. Measured, it did not: the one
+# whole-track allocation (the 2-8 kHz rows kept for the flux) is ~10 MB at
+# every rate, because a higher rate gives proportionally more frames but
+# coarser bins per Hz and the two cancel. It also cost 6x the runtime on a
+# 94 s file (505 ms vs 83 ms) - the resample itself is dearer than the extra
+# FFT work it avoids - while changing detected entry times by under 0.1 s.
+BASS_HZ = (20, 250)
+DRUM_HZ = (2000, 8000)
+HARMONY_HZ = (800, 6000)
+BRIGHT_HZ = (6000, 11000)
 
 SUSTAIN_WINDOW_SEC = 0.4    # rolling minimum: longer than a drum hit, shorter than a held note
 ENVELOPE_RELEASE_SEC = 1.0  # bridges the gap between notes of one part
@@ -201,18 +214,20 @@ def _intervals(curve: np.ndarray, times: np.ndarray, hop_sec: float,
 
 def analyse_layers(y: np.ndarray, sr: int) -> LayerMap:
     duration = len(y) / sr if sr else 0.0
-    if sr != ANALYSIS_RATE and len(y):
-        import soxr
+    nyquist = sr / 2 if sr else 0.0
 
-        y = soxr.resample(y, sr, ANALYSIS_RATE).astype(np.float32)
-        sr = ANALYSIS_RATE
+    def clamp(band: tuple) -> tuple:
+        """Keep a band inside what this file can represent. A 16 kHz file has
+        nothing above 8 kHz to measure, so the top bands collapse rather than
+        silently reading as empty."""
+        return (min(band[0], nyquist), min(band[1], nyquist))
 
-    freqs = np.fft.rfftfreq(FRAME, 1 / sr)
-    hop_sec = HOP / sr
+    freqs = np.fft.rfftfreq(FRAME, 1 / sr) if sr else np.zeros(0)
+    hop_sec = HOP / sr if sr else 0.0
     (low_band, mid_band, high_band, total_band), drum_rows = _stft_bands(
         np.asarray(y, dtype=np.float32), freqs,
-        bands=[(20, 250), (800, 6000), (6000, sr / 2), (0, sr / 2)],
-        keep=(2000, 8000),
+        bands=[clamp(BASS_HZ), clamp(HARMONY_HZ), clamp(BRIGHT_HZ), (0, nyquist)],
+        keep=clamp(DRUM_HZ),
     )
     if low_band.size == 0:
         return LayerMap(duration_sec=round(duration, 1))
@@ -227,7 +242,7 @@ def analyse_layers(y: np.ndarray, sr: int) -> LayerMap:
          drum_flux),
         ("harmony", "Harmony / synth", "sustained 800 Hz-6 kHz",
          _rolling_min(mid_band, hop_sec, SUSTAIN_WINDOW_SEC)),
-        ("high", "Bright / lead", "sustained above 6 kHz",
+        ("high", "Bright / lead", "sustained 6-11 kHz",
          _rolling_min(high_band, hop_sec, SUSTAIN_WINDOW_SEC)),
     ]
 
