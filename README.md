@@ -19,8 +19,6 @@ times listed.
 
 ## Run it locally
 
-Python 3.11 (what the deployment pins, see `.python-version`).
-
 ```bash
 python3 -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
@@ -41,15 +39,35 @@ Deployment):
 PORT=5050 SECRET_KEY=anything gunicorn -c gunicorn.conf.py app:app
 ```
 
+`requirements.txt` holds only what the app actually runs — flask, numpy,
+soundfile, soxr, gunicorn — so this installs in seconds on any reasonably
+current Python.
+
 ### Tests
+
+The full suite also covers the dormant modules, which need the heavy stack:
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
 ```
 
-77 tests, about 30 seconds. They generate their audio in memory, so no
-sample files are needed.
+77 tests, about 30 seconds. They generate their audio in memory, so no sample
+files are needed.
+
+**Use Python 3.11 for this** (what the deployment pins — see
+`.python-version`). `ai-edge-litert` and numba do not publish wheels for
+every Python version, so on a newer interpreter the install fails with
+`Could not find a version that satisfies the requirement ai-edge-litert`.
+Note that bare `python3` may well be newer than 3.11 on your machine:
+
+```bash
+python3 --version                 # check what you actually got
+python3.11 -m venv venv           # or: uv venv --python 3.11
+```
+
+Running the app itself has no such constraint — only the dormant modules'
+tests do.
 
 ### File formats
 
@@ -168,7 +186,9 @@ So these modules are present and tested but **not wired into `app.py`**:
 | `instruments.py` | YAMNet instrument naming |
 
 They all still pass their tests and can be re-enabled on a host with more
-memory — Render Standard (2 GB, $25/mo) or equivalent.
+memory — Render Standard (2 GB, $25/mo) or equivalent. Their dependencies
+live in `requirements-dev.txt`, not `requirements.txt`, so a deployment does
+not install ~450 MB of libraries it never loads.
 
 ## Limitations
 

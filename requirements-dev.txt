@@ -1,2 +1,12 @@
 -r requirements.txt
 pytest==8.3.4
+
+# Only the dormant modules need these - analysis.py, chords.py, song_map.py,
+# structure.py (librosa/scipy) and instruments.py (ai-edge-litert). The app
+# itself imports none of them, so they are kept out of requirements.txt: they
+# would add ~450 MB to a deployment that never loads them, and ai-edge-litert
+# has no wheel for every Python version, which blocks installs that only want
+# to run the app.
+librosa==0.11.0
+scipy==1.17.1
+ai-edge-litert==2.2.0
