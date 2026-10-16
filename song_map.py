@@ -1,31 +1,29 @@
 """
-Carte de la chanson : grille de mesures + estimation heuristique du moment
-d'entree de la voix / basse / percussions / accords, dans le temps.
+Song map: a bar grid plus a heuristic estimate of when vocals / bass /
+percussion / chords enter, over time.
 
-Choix assume : PAS de separation de sources (type Demucs/PyTorch), pour
-rester leger a installer (decision explicite de l'utilisateur). Consequence
-directe : on ne peut pas identifier un instrument precis. Ce qu'on isole a
-la place, ce sont des BANDES DE FREQUENCE et les composantes
-harmonique/percussive du signal complet (via HPSS de librosa) :
+A deliberate choice: NO source separation (Demucs/PyTorch style), to stay
+light to install (an explicit decision by the user). Direct consequence: no
+specific instrument can be identified. What is isolated instead are
+FREQUENCY BANDS and the harmonic/percussive components of the full mix (via
+librosa's HPSS):
 
-- "Percussion (likely)"      -> energie large bande de la composante
-                                    percussive (HPSS)
-- "Bass (low end)"              -> energie de la bande < 250 Hz
-- "Chords / harmony (mids)" -> energie de la bande 250-2500 Hz sur la
-                                    composante harmonique
-- "Voix / mélodie (probable)"    -> probabilite "voisee" de pYIN (suivi de
-                                    hauteur monophonique) sur la composante
-                                    harmonique
+- "Percussion (likely)"           -> broadband energy of the percussive
+                                     component (HPSS)
+- "Bass (low end)"                -> energy below 250 Hz
+- "Chords / harmony (mids)"       -> energy in 250-2500 Hz of the harmonic
+                                     component
+- "Vocals / lead melody (likely)" -> pYIN's voiced probability (monophonic
+                                     pitch tracking) on the harmonic
+                                     component
 
-Limite assumee et documentee : une mélodie jouée par un instrument solo
-(guitare, saxophone...) ressemblera a de la voix pour pYIN — il n'y a pas de
-distinction fiable entre les deux sans separation de sources. A traiter
-comme un guide visuel de la texture du morceau, pas une transcription
-instrument par instrument.
+A known and documented limit: a melody played by a solo instrument (guitar,
+saxophone...) looks like a voice to pYIN - there is no reliable way to tell
+them apart without source separation. Treat it as a visual guide to the
+track's texture, not an instrument-by-instrument transcription.
 
-Le decoupage en mesures suppose une mesure a 3 ou 4 temps (les cas les plus
-frequents) ; le nombre de temps par mesure est estime par contraste
-d'accentuation, pas lu dans une partition.
+The bar grid assumes 3 or 4 beats per bar (the most common cases); the
+count is estimated from accent contrast, not read from a score.
 """
 from __future__ import annotations
 
@@ -36,11 +34,11 @@ import librosa
 from scipy.signal import butter, sosfiltfilt, medfilt
 
 HOP_LENGTH = 512
-ENTRY_THRESHOLD_RATIO = 0.2   # fraction du pic de la piste pour considerer qu'elle est "entree"
-ENTRY_SUSTAIN_SEC = 0.5       # duree minimale au-dessus du seuil pour ignorer un simple transitoire
-ENVELOPE_RELEASE_SEC = 1.5    # temps de relachement : comble les silences entre deux notes d'une meme piste
-DOWNSAMPLE_POINTS = 240       # nombre de points gardes par piste pour l'affichage
-MEASURE_TOLERANCE_SEC = 0.05  # tolérance d'arrondi pour placer un instant sur la grille de mesures
+ENTRY_THRESHOLD_RATIO = 0.2   # share of the track's peak at which it counts as "entered"
+ENTRY_SUSTAIN_SEC = 0.5       # minimum time above the threshold, to ignore a lone transient
+ENVELOPE_RELEASE_SEC = 1.5    # release time: bridges the gaps between notes of one track
+DOWNSAMPLE_POINTS = 240       # points kept per track for display
+MEASURE_TOLERANCE_SEC = 0.05  # rounding tolerance when placing an instant on the bar grid
 
 
 @dataclass
@@ -49,8 +47,8 @@ class Track:
     label: str
     entry_time: float | None
     entry_measure: int | None
-    times: list = field(default_factory=list)     # secondes, sous-echantillonne pour l'affichage
-    values: list = field(default_factory=list)     # 0..1, sous-echantillonne
+    times: list = field(default_factory=list)     # seconds, downsampled for display
+    values: list = field(default_factory=list)     # 0..1, downsampled
 
 
 @dataclass
@@ -61,7 +59,7 @@ class SongMap:
     measure_times: list
     duration_sec: float
     tracks: list
-    beat_times: list = field(default_factory=list)   # réutilisé par la détection d'accords
+    beat_times: list = field(default_factory=list)   # reused by chord detection
 
 
 def _bandpass_rms(y: np.ndarray, sr: int, low: float, high: float) -> np.ndarray:
@@ -74,12 +72,12 @@ def _bandpass_rms(y: np.ndarray, sr: int, low: float, high: float) -> np.ndarray
 
 
 def _envelope_follower(x: np.ndarray, hop_sec: float, release_sec: float = ENVELOPE_RELEASE_SEC) -> np.ndarray:
-    """Attaque instantanee, relachement exponentiel lent : transforme une
-    piste jouee en pulsations (batterie, basse en notes courtes...) en une
-    courbe de "presence" continue, en comblant les silences entre deux
-    notes rapprochees. Une simple moyenne glissante echoue ici : sur une
-    piste faite de pics courts separes de silences, elle retombe sous le
-    seuil entre chaque pic et empeche de detecter une entree "soutenue"."""
+    """Instant attack, slow exponential release: turns a track played in
+    pulses (drums, a bass in short notes...) into a continuous "presence"
+    curve by bridging the gaps between close notes. A plain moving average
+    fails here: on a track made of short peaks separated by silence, it
+    drops below the threshold between peaks and prevents a "sustained"
+    entry from ever being detected."""
     if len(x) == 0:
         return x
     decay = 0.1 ** (hop_sec / release_sec)
@@ -112,8 +110,8 @@ def _normalize01(x: np.ndarray) -> np.ndarray:
 
 
 def _find_entry(times: np.ndarray, values: np.ndarray, hop_sec: float) -> float | None:
-    """Premier instant ou la piste depasse son propre seuil et y reste assez
-    longtemps (ignore un pic isole)."""
+    """First instant the track exceeds its own threshold and stays there long
+    enough (a lone peak is ignored)."""
     if len(values) == 0:
         return None
     threshold = ENTRY_THRESHOLD_RATIO * values.max()
@@ -138,10 +136,9 @@ def _downsample(times: np.ndarray, values: np.ndarray, duration: float, n: int =
 
 
 def _estimate_beats_per_measure(onset_env: np.ndarray, beat_frames: np.ndarray) -> int:
-    """4/4 par defaut (le plus courant) ; on ne bascule sur 3/4 que si le
-    contraste d'accentuation (temps 1 plus fort que les autres) le soutient
-    clairement, sinon un morceau sans accent marque ferait basculer
-    l'estimation au hasard."""
+    """4/4 by default (the most common); switch to 3/4 only when the accent
+    contrast (beat 1 louder than the others) clearly supports it, otherwise a
+    track without marked accents would flip the estimate at random."""
     if len(beat_frames) < 8:
         return 4
 
@@ -179,23 +176,23 @@ def build_song_map(y: np.ndarray, sr: int) -> SongMap:
 
     y_harmonic, y_percussive = librosa.effects.hpss(y)
 
-    # bande basse mesuree sur la composante harmonique : sur le signal complet,
-    # le bruit large-bande des percussions deborde dans les graves et masque
-    # l'entree reelle de la basse.
+    # The low band is measured on the harmonic component: on the full mix,
+    # the drums' broadband noise spills into the low end and hides the bass's
+    # real entry.
     raw_tracks = []
 
     perc_rms = librosa.feature.rms(y=y_percussive, hop_length=HOP_LENGTH)[0]
-    raw_tracks.append(("percussions", "Percussion (likely)", perc_rms, False))
+    raw_tracks.append(("percussion", "Percussion (likely)", perc_rms, False))
 
     bass_rms = _bandpass_rms(y_harmonic, sr, 30, 250)
-    raw_tracks.append(("basses", "Bass (low end)", bass_rms, False))
+    raw_tracks.append(("bass", "Bass (low end)", bass_rms, False))
 
     mid_rms = _bandpass_rms(y_harmonic, sr, 250, 2500)
-    raw_tracks.append(("accords", "Chords / harmony (mids)", mid_rms, False))
+    raw_tracks.append(("chords", "Chords / harmony (mids)", mid_rms, False))
 
-    # fmin releve a C3 : evite de confondre une note de basse grave (souvent
-    # 40-130 Hz) avec une voix, meme si ca exclut les voix d'homme les plus
-    # graves - compromis assume, sans separation de sources.
+    # fmin raised to C3: keeps a low bass note (often 40-130 Hz) from being
+    # taken for a voice, even though it excludes the deepest male voices - an
+    # accepted trade-off without source separation.
     _, _, voiced_prob = librosa.pyin(
         y_harmonic,
         fmin=librosa.note_to_hz("C3"),
@@ -204,23 +201,23 @@ def build_song_map(y: np.ndarray, sr: int) -> SongMap:
         hop_length=HOP_LENGTH,
     )
     voiced_prob = np.nan_to_num(voiced_prob)
-    raw_tracks.append(("voix", "Vocals / lead melody (likely)", voiced_prob, True))
+    raw_tracks.append(("vocals", "Vocals / lead melody (likely)", voiced_prob, True))
 
     tracks = []
     for key, label, values, denoise in raw_tracks:
         times = librosa.frames_to_time(np.arange(len(values)), sr=sr, hop_length=HOP_LENGTH)
-        # pYIN peut ponctuellement signaler un unique instant "voise" sur du
-        # bruit ; un filtre median l'elimine sans affecter un vrai passage
-        # chante. Sur les pistes RMS, ce meme filtre effacerait au contraire
-        # un coup de batterie legitime (large de 1-2 frames) : reserve a la voix.
+        # pYIN can occasionally flag a single "voiced" instant on noise; a
+        # median filter removes it without touching a real sung passage. On
+        # the RMS tracks the same filter would instead erase a legitimate drum
+        # hit (1-2 frames wide), so it is kept to the vocals.
         source = medfilt(values, kernel_size=5) if denoise else values
         enveloped = _envelope_follower(source, hop_sec)
         display_curve = _normalize01(enveloped)
         entry = _find_entry(times, enveloped, hop_sec)
         entry_measure = None
         if entry is not None and len(measure_times):
-            # nombre de debuts de mesure <= entry = numero de mesure (1-indexe) ;
-            # clampe a 1 si l'entree precede le tout premier temps detecte.
+            # number of bar starts <= entry = bar number (1-indexed); clamped
+            # to 1 if the entry precedes the very first detected beat.
             entry_measure = max(1, int(np.searchsorted(measure_times, entry, side="right")))
         d_times, d_values = _downsample(times, display_curve, duration)
         tracks.append(Track(

@@ -6,6 +6,7 @@ from werkzeug.utils import secure_filename
 
 from instruments import load_audio_lite
 from layers import analyse_layers
+from musical import analyse_musical
 from viz import layer_track_svg
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,11 +19,14 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
 # Two pipelines are deliberately not wired up here, for different reasons.
 #
-# Tempo/key/mode/chords/structure/song-map/similar-tracks (analysis.py,
-# chords.py, song_map.py, structure.py) all run through librosa, whose
-# dependency chain (scipy, numba/LLVM, scikit-learn) measured at ~500 MB
+# The librosa pipeline (analysis.py, chords.py, song_map.py, structure.py)
+# needs scipy, numba/LLVM and scikit-learn, which measured at ~500 MB
 # resident once warmed - almost the entire 512 MB ceiling of this plan,
-# before a single request is served.
+# before a single request is served. Tempo and key are back regardless:
+# musical.py measures them in plain numpy (validated against that pipeline
+# on real tracks, see its docstring), and the key/mode maths it shares with
+# analysis.py now lives in keymode.py, which imports nothing heavier.
+# Chords and song structure are still off.
 #
 # Instrument NAMING (instruments.py, YAMNet) is left out because it was
 # wrong on real material, not because of its size. Its input front-end
@@ -77,6 +81,7 @@ def analyze():
     try:
         y, sr = load_audio_lite(tmp.name)
         layer_map = analyse_layers(y, sr)
+        musical = analyse_musical(y, sr)
     except Exception as exc:
         flash(f"Could not analyse this file: {exc}")
         os.remove(tmp.name)
@@ -94,6 +99,7 @@ def analyze():
         filename=filename,
         layer_map=layer_map,
         layer_svgs=layer_svgs,
+        musical=musical,
     )
 
 

@@ -17,7 +17,7 @@ def test_measure_grid_svg_handles_no_measures():
 
 def test_track_svg_renders_polygon_and_entry_marker_when_data_present():
     track = Track(
-        key="voix",
+        key="vocals",
         label="Voix",
         entry_time=1.0,
         entry_measure=2,
@@ -26,12 +26,12 @@ def test_track_svg_renders_polygon_and_entry_marker_when_data_present():
     )
     svg = track_svg(track, duration=2.0, measure_times=[0.0, 1.0])
     assert "<polygon" in svg
-    assert "track-area-voix" in svg          # colour comes from the stylesheet, via the class
-    assert "track-entry-line-voix" in svg    # the entry-time marker
+    assert "track-area-vocals" in svg          # colour comes from the stylesheet, via the class
+    assert "track-entry-line-vocals" in svg    # the entry-time marker
 
 
 def test_track_svg_handles_no_data_without_marker():
-    track = Track(key="basses", label="Basses", entry_time=None, entry_measure=None, times=[], values=[])
+    track = Track(key="bass", label="Bass", entry_time=None, entry_measure=None, times=[], values=[])
     svg = track_svg(track, duration=10.0, measure_times=[])
     assert "<svg" in svg
     assert "<polygon" not in svg

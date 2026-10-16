@@ -1,7 +1,7 @@
 # Audio Analyser
 
-Upload an audio file and see **which layers of the arrangement are playing,
-and when each one enters and leaves**.
+Upload an audio file and see its **tempo and key**, and **which layers of
+the arrangement are playing, and when each one enters and leaves**.
 
 Live at <https://audio-mood-analyzer.onrender.com> (free tier — the instance
 sleeps after 15 minutes idle, so the first request after a pause waits on a
@@ -17,6 +17,11 @@ cold start).
 Each layer is drawn as a bar on a shared time axis, with its entry and exit
 times listed.
 
+The result page plays the file back against those bars: click a bar or an
+entry time to listen from that point (space plays/pauses, arrows step 5 s).
+Playback uses the copy already on your disk — the audio is never sent back
+from the server.
+
 ## Run it locally
 
 ```bash
@@ -31,9 +36,8 @@ Then open <http://127.0.0.1:5050>. That is Flask's development server with
 `debug=True`, so it reloads when you edit a file. Use `PORT=8000 python
 app.py` if 5050 is taken.
 
-To run it under gunicorn, as the deployment does — same worker count and
-boot logging (production additionally overrides the timeout, see
-Deployment):
+To run it under gunicorn exactly as the deployment does (same workers,
+timeout and boot logging):
 
 ```bash
 PORT=5050 SECRET_KEY=anything gunicorn -c gunicorn.conf.py app:app
@@ -77,7 +81,8 @@ on your PATH as the fallback. If an mp3 fails to load, install ffmpeg.
 
 ## How the analysis works
 
-All of it is in `layers.py`, in plain numpy — no model, no librosa, no scipy.
+All of it is plain numpy — no model, no librosa, no scipy. Layers are in
+`layers.py`; tempo and key in `musical.py` (below).
 
 One STFT pass gives a grid of energy per frequency per moment
 (`sliding_window_view` produces the overlapping frames as a *view*, so the
@@ -104,6 +109,30 @@ per-frame band curves. Then, per layer:
 
 Validated against a real track whose entry times were supplied by ear
 (bass 0:00, kick+snare 0:03, synth 0:12): detected 0.3 s / 3.2 s / 12.0 s.
+
+### Tempo and key
+
+**Tempo**: an onset-strength curve (log-compressed spectral flux over 48
+mel-spaced bands, every ~23 ms), autocorrelated over 8 s Hann-windowed
+stretches and averaged, then weighted by a log-normal prior around 120 BPM —
+the same recipe as librosa's tempo estimator. A beat repeats equally at half
+and double speed, so the page also lists those readings. Held chords and
+noise are refused before the lag search (a beat is spiky, they are flat), and
+a weak peak is reported as "no steady beat" rather than a number.
+
+**Key**: a 12-bin chroma from a 16384-point STFT (fine enough to separate
+semitones down to ~100 Hz), each semitone weighted equally — a linear STFT
+otherwise lets upper harmonics outvote the notes played and lands keys a
+fifth up — then Krumhansl-Schmuckler profiles, plus the closest church modes
+(`keymode.py`, shared with the dormant `analysis.py`).
+
+Checked against the previous librosa pipeline on librosa's seven example
+recordings: same tempo as its `beat_track` on six (the seventh, a rubato
+orchestral piece, is reported as no steady beat); same key on five (among them
+E minor for the Tchaikovsky, which is its written key). The two
+disagreements are a drum & bass loop with almost no harmony (both
+estimates weak) and a ragtime read as F major against librosa's C major.
+Cost on a 4-minute 44.1 kHz file: ~1.2 s CPU and ~25 MB peak.
 
 ## Why there are no instrument names
 
@@ -140,7 +169,8 @@ instrument name is worse than an honest register.
 Render, free plan, auto-deploying from `main`.
 
 - Build: `pip install -r requirements.txt`
-- Start: `gunicorn -c gunicorn.conf.py --timeout 300 -b 0.0.0.0:$PORT app:app`
+- Start: `gunicorn -c gunicorn.conf.py app:app` — no flags; workers (2),
+  timeout (300 s) and bind all come from `gunicorn.conf.py`
 - `SECRET_KEY` set as an environment variable
 
 Everything the deployment needs is in `gunicorn.conf.py` rather than in
@@ -179,7 +209,7 @@ So these modules are present and tested but **not wired into `app.py`**:
 
 | Module | Feature |
 | --- | --- |
-| `analysis.py` | key, church mode, tempo, mood, library similarity |
+| `analysis.py` | mood, library similarity (tempo/key now run via `musical.py`) |
 | `chords.py` | chord estimation by template matching |
 | `song_map.py` | frequency-band track map and measure grid |
 | `structure.py` | intro / verse / chorus segmentation |

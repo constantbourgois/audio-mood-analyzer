@@ -38,3 +38,22 @@ def test_analyze_valid_wav_returns_result_page(client, sample_wav_bytes):
     body = resp.data.decode("utf-8")
     assert "Layers over time" in body
     assert "pytest_sample.wav" in body
+
+
+def test_result_page_carries_player_hooks(client, sample_wav_bytes):
+    # The player runs in the browser from the picked file; the page only has
+    # to ship the hooks, hidden/disabled until the script attaches the audio.
+    data = {"audio_file": (sample_wav_bytes, "pytest_sample.wav")}
+    body = client.post("/analyze", data=data, content_type="multipart/form-data").data.decode("utf-8")
+    assert "data-layer-map" in body
+    assert 'data-duration="2.0"' in body
+    assert "<div class=\"card player\" data-player hidden>" in body
+    assert "window.attachPlayer" in body
+
+
+def test_result_page_shows_tempo_and_key_card(client, sample_wav_bytes):
+    data = {"audio_file": (sample_wav_bytes, "pytest_sample.wav")}
+    body = client.post("/analyze", data=data, content_type="multipart/form-data").data.decode("utf-8")
+    assert "Tempo &amp; key" in body
+    # A 2 s tone is too short to call a tempo, and the page says so plainly.
+    assert "No steady beat" in body

@@ -49,10 +49,10 @@ FAMILY_SIMILARITY = 0.82
 PART_ACTIVE_RATIO = 0.25
 
 PART_NAMES = {
-    "percussions": "percussion",
-    "basses": "bass",
-    "accords": "harmony",
-    "voix": "vocals/lead",
+    "percussion": "percussion",
+    "bass": "bass",
+    "chords": "harmony",
+    "vocals": "vocals/lead",
 }
 
 

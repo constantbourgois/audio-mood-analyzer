@@ -1,10 +1,10 @@
 """
-Rendu SVG (sans dépendance graphique externe) de la carte de la chanson :
-une piste = une aire remplie (activité 0-1 dans le temps) + un marqueur au
-moment d'entrée détecté, superposée à une grille de mesures.
+SVG rendering (no external graphics dependency) of the song map: one track =
+a filled area (0-1 activity over time) + a marker at the detected entry,
+over a bar grid.
 
-Le viewBox est le même (0 0 1000 H) pour la grille et toutes les pistes,
-ce qui les garde alignées verticalement dans la page (chacune en width:100%).
+The viewBox is the same (0 0 1000 H) for the grid and every track, which
+keeps them vertically aligned on the page (each at width:100%).
 """
 from __future__ import annotations
 
@@ -13,17 +13,17 @@ TRACK_HEIGHT = 60
 GRID_HEIGHT = 32
 CHORD_HEIGHT = 40
 
-# En dessous de cette largeur (unités du viewBox), l'étiquette ne tient pas
-# dans le bloc : mieux vaut le laisser nu que d'écrire par-dessus le voisin.
+# Below this width (viewBox units) the label does not fit in the block:
+# better to leave it bare than to write over its neighbour.
 CHORD_LABEL_MIN_WIDTH = 48
 
 SECTION_HEIGHT = 46
 SECTION_LABEL_MIN_WIDTH = 90   # "Chorus 1" needs noticeably more room than "Am"
 SECTION_FAMILY_SLOTS = 4       # families beyond this reuse a slot; the label still disambiguates
 
-# Les couleurs vivent dans la feuille de style (classes CSS), pas ici : le
-# SVG est inline dans la page, donc une classe suffit, et la palette reste
-# définie à un seul endroit avec le reste du thème.
+# Colours live in the stylesheet (CSS classes), not here: the SVG is inline
+# in the page, so a class is enough, and the palette stays defined in one
+# place with the rest of the theme.
 
 
 def _x(t: float, duration: float) -> float:
@@ -44,13 +44,13 @@ def measure_grid_svg(measure_times: list, duration: float, beats_per_measure: in
     body = "".join(lines)
     return (
         f'<svg viewBox="0 0 {VIEW_WIDTH} {GRID_HEIGHT}" preserveAspectRatio="none" '
-        f'class="grid-svg" role="img" aria-label="Grille des {n} mesures">{body}</svg>'
+        f'class="grid-svg" role="img" aria-label="Grid of {n} bars">{body}</svg>'
     )
 
 
 def chord_ribbon_svg(chords: list, duration: float, measure_times: list) -> str:
-    """Bande d'accords sur la même échelle de temps que la grille et les
-    pistes, pour lire d'un coup d'œil l'harmonie sous l'entrée des pistes."""
+    """Chord ribbon on the same time scale as the grid and the tracks, to
+    read the harmony under the track entries at a glance."""
     h = CHORD_HEIGHT
     parts = []
 
@@ -78,7 +78,7 @@ def chord_ribbon_svg(chords: list, duration: float, measure_times: list) -> str:
     body = "".join(parts)
     return (
         f'<svg viewBox="0 0 {VIEW_WIDTH} {h}" preserveAspectRatio="none" '
-        f'class="chord-svg" role="img" aria-label="Suite d\'accords estimée, {len(chords)} segments">{body}</svg>'
+        f'class="chord-svg" role="img" aria-label="Estimated chord sequence, {len(chords)} segments">{body}</svg>'
     )
 
 
@@ -170,5 +170,5 @@ def track_svg(track, duration: float, measure_times: list) -> str:
     body = "".join(parts)
     return (
         f'<svg viewBox="0 0 {VIEW_WIDTH} {h}" preserveAspectRatio="none" '
-        f'class="track-svg" role="img" aria-label="Activité de la piste {track.label}">{body}</svg>'
+        f'class="track-svg" role="img" aria-label="Activity of track {track.label}">{body}</svg>'
     )
