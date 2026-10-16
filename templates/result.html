@@ -1,13 +1,26 @@
 {% extends "base.html" %}
 {% block title %}{{ filename }} — Audio Analyser{% endblock %}
 {% block content %}
+  <div data-layer-map data-duration="{{ layer_map.duration_sec }}">
   <h1>{{ filename }}</h1>
   <p class="subtitle">{{ layer_map.duration_sec | mmss }}</p>
+
+  {# Filled in by the browser from the file the user picked: the audio never
+     comes back from the server, so this costs the server nothing. Stays
+     hidden on a plain form submit, where no file is left to play. #}
+  <div class="card player" data-player hidden>
+    <button type="button" class="player-toggle" data-player-toggle aria-label="Play">
+      <svg viewBox="0 0 16 16" aria-hidden="true" class="icon-play"><path d="M4 2.5v11l9-5.5z"/></svg>
+      <svg viewBox="0 0 16 16" aria-hidden="true" class="icon-pause"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>
+    </button>
+    <input type="range" class="player-scrub" data-player-scrub min="0" max="1000" value="0" step="1" aria-label="Position">
+    <span class="player-time"><span data-player-current>0:00</span> / <span data-player-total>{{ layer_map.duration_sec | mmss }}</span></span>
+  </div>
 
   <div class="card">
     <h2>Layers over time</h2>
     {% if layer_map.layers %}
-      <p class="muted">{{ layer_map.layers | length }} found, in order of entrance</p>
+      <p class="muted">{{ layer_map.layers | length }} found, in order of entrance<span class="player-hint" data-player-hint hidden> — click a bar or a time to listen from there</span></p>
 
       {% for layer, svg in layer_svgs %}
         <div class="layer-row">
@@ -15,11 +28,14 @@
             <strong>{{ layer.label }} <span class="layer-hint">{{ layer.hint }}</span></strong>
             <span class="layer-when">
               {% for start, end in layer.intervals %}
-                {{ start | mmss }}–{{ end | mmss }}{% if not loop.last %}, {% endif %}
+                <button type="button" class="seek" data-seek="{{ start }}" disabled>{{ start | mmss }}–{{ end | mmss }}</button>{% if not loop.last %}, {% endif %}
               {% endfor %}
             </span>
           </div>
-          {{ svg | safe }}
+          <div class="layer-plot" data-seek-plot>
+            {{ svg | safe }}
+            <span class="playhead" data-playhead hidden></span>
+          </div>
         </div>
       {% endfor %}
 
@@ -43,4 +59,5 @@
   </p>
 
   <a class="back" href="{{ url_for('index') }}">&larr; Analyse another file</a>
+  </div>
 {% endblock %}

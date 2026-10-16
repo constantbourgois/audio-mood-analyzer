@@ -17,6 +17,11 @@ cold start).
 Each layer is drawn as a bar on a shared time axis, with its entry and exit
 times listed.
 
+The result page plays the file back against those bars: click a bar or an
+entry time to listen from that point (space plays/pauses, arrows step 5 s).
+Playback uses the copy already on your disk — the audio is never sent back
+from the server.
+
 ## Run it locally
 
 ```bash

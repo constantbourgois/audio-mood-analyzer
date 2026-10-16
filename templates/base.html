@@ -335,6 +335,65 @@
     .chord-block-minor { fill: var(--c-chord-minor); stroke: var(--c-chord-minor); }
     .chord-label { fill: var(--text); font-size: 16px; font-weight: 600; }
 
+    /* --- Player --- */
+    .player {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      padding: 0.9rem 1.1rem;
+    }
+    .player[hidden] { display: none; }
+    .player-toggle {
+      flex: 0 0 auto;
+      width: 2.6rem;
+      height: 2.6rem;
+      padding: 0;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .player-toggle svg { width: 1rem; height: 1rem; fill: currentColor; }
+    .player-toggle .icon-pause { display: none; }
+    .player.is-playing .player-toggle .icon-play { display: none; }
+    .player.is-playing .player-toggle .icon-pause { display: block; }
+    .player-scrub { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+    .player-time {
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .layer-plot { position: relative; }
+    .is-live .layer-plot { cursor: pointer; }
+    .playhead {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 2px;
+      margin-left: -1px;
+      background: var(--text);
+      border-radius: 1px;
+      pointer-events: none;
+    }
+
+    /* Interval times read as plain text until a player is attached. */
+    button.seek {
+      background: none;
+      border: none;
+      border-radius: 4px;
+      padding: 0 0.15rem;
+      margin: 0 -0.15rem;
+      color: inherit;
+      font: inherit;
+      font-weight: 400;
+    }
+    button.seek:disabled { opacity: 1; cursor: default; }
+    button.seek:not(:disabled) { color: var(--accent); text-decoration: underline dotted; text-underline-offset: 2px; }
+    button.seek:not(:disabled):hover { filter: none; text-decoration-style: solid; }
+
     /* --- Layer timeline --- */
     .layer-row { margin-bottom: 1rem; }
     .layer-label {
@@ -367,6 +426,7 @@
       body { padding: 1.75rem 0.85rem 3rem; }
       .card { padding: 1.15rem; }
       .metrics { grid-template-columns: 1fr; }
+      .player { gap: 0.6rem; padding: 0.75rem 0.85rem; }
     }
   </style>
 </head>
@@ -381,5 +441,139 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
+  <script>
+    // Plays the file the user picked, straight from their disk (an object
+    // URL), against the layer timeline. Called by the upload script once the
+    // result page is in place; a page reached without that file (a plain
+    // form submit, a reload) keeps the player hidden.
+    window.attachPlayer = function (root, file) {
+      var player = root.querySelector("[data-player]");
+      var map = root.querySelector("[data-layer-map]");
+      if (!player || !map || !file || !window.URL || !URL.createObjectURL) return;
+
+      var audio = document.createElement("audio");
+      if (!audio.canPlayType) return;
+
+      var toggle = player.querySelector("[data-player-toggle]");
+      var scrub = player.querySelector("[data-player-scrub]");
+      var current = player.querySelector("[data-player-current]");
+      var total = player.querySelector("[data-player-total]");
+      var playheads = root.querySelectorAll("[data-playhead]");
+      var url = URL.createObjectURL(file);
+
+      // The bars are drawn on the server's 0..duration scale, so clicks and
+      // the playhead use that same scale; the clock shows the real length.
+      var drawn = parseFloat(map.getAttribute("data-duration")) || 0;
+      function length() {
+        return isFinite(audio.duration) && audio.duration > 0 ? audio.duration : drawn;
+      }
+      function scale() { return drawn > 0 ? drawn : length(); }
+
+      function mmss(sec) {
+        var s = Math.max(0, Math.round(sec || 0));
+        var m = Math.floor(s / 60);
+        s = s % 60;
+        return m + ":" + (s < 10 ? "0" : "") + s;
+      }
+
+      var scrubbing = false;
+      function render() {
+        var t = audio.currentTime || 0;
+        var fraction = scale() > 0 ? Math.min(1, t / scale()) : 0;
+        for (var i = 0; i < playheads.length; i++) {
+          playheads[i].style.left = (fraction * 100).toFixed(3) + "%";
+        }
+        if (!scrubbing) scrub.value = length() > 0 ? Math.round((t / length()) * 1000) : 0;
+        current.textContent = mmss(t);
+      }
+
+      var frame = null;
+      function loop() {
+        render();
+        frame = audio.paused ? null : requestAnimationFrame(loop);
+      }
+
+      function seek(t, play) {
+        audio.currentTime = Math.max(0, Math.min(t, length()));
+        render();
+        if (play && audio.paused) audio.play();
+      }
+
+      audio.addEventListener("loadedmetadata", function () {
+        total.textContent = mmss(length());
+        player.hidden = false;
+        map.classList.add("is-live");
+        var hint = root.querySelector("[data-player-hint]");
+        if (hint) hint.hidden = false;
+        for (var i = 0; i < playheads.length; i++) playheads[i].hidden = false;
+        var times = root.querySelectorAll("[data-seek]");
+        for (var j = 0; j < times.length; j++) times[j].disabled = false;
+        render();
+      });
+      // A format this browser cannot decode (some .m4a, for one): leave the
+      // page as it was rather than show controls that do nothing.
+      audio.addEventListener("error", function () {
+        URL.revokeObjectURL(url);
+      });
+      audio.addEventListener("play", function () {
+        player.classList.add("is-playing");
+        toggle.setAttribute("aria-label", "Pause");
+        if (frame === null) frame = requestAnimationFrame(loop);
+      });
+      audio.addEventListener("pause", function () {
+        player.classList.remove("is-playing");
+        toggle.setAttribute("aria-label", "Play");
+        render();
+      });
+      audio.addEventListener("seeked", render);
+
+      toggle.addEventListener("click", function () {
+        if (audio.paused) audio.play(); else audio.pause();
+      });
+
+      scrub.addEventListener("input", function () {
+        scrubbing = true;
+        seek((scrub.value / 1000) * length(), false);
+      });
+      scrub.addEventListener("change", function () { scrubbing = false; });
+
+      map.addEventListener("click", function (event) {
+        if (!map.classList.contains("is-live")) return;
+        var time = event.target.closest("[data-seek]");
+        if (time) {
+          seek(parseFloat(time.getAttribute("data-seek")), true);
+          return;
+        }
+        var plot = event.target.closest("[data-seek-plot]");
+        if (plot) {
+          var box = plot.getBoundingClientRect();
+          if (box.width > 0) seek(((event.clientX - box.left) / box.width) * scale(), true);
+        }
+      });
+
+      // Space plays/pauses, arrows step 5 s - unless a control has focus and
+      // the key already means something there.
+      document.addEventListener("keydown", function (event) {
+        if (player.hidden || event.altKey || event.ctrlKey || event.metaKey) return;
+        var tag = event.target && event.target.tagName;
+        if (tag === "INPUT" || tag === "BUTTON" || tag === "A" || tag === "TEXTAREA") return;
+        if (event.key === " ") {
+          event.preventDefault();
+          toggle.click();
+        } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          seek(audio.currentTime + (event.key === "ArrowRight" ? 5 : -5), false);
+        }
+      });
+
+      window.addEventListener("pagehide", function () {
+        audio.pause();
+        URL.revokeObjectURL(url);
+      });
+
+      audio.preload = "metadata";
+      audio.src = url;
+    };
+  </script>
 </body>
 </html>

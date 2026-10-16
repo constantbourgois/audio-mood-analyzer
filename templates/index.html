@@ -31,7 +31,7 @@
       // Without XHR upload events there is no way to know how far an upload
       // has got, so leave the plain form submit alone rather than show a bar
       // that is not measuring anything.
-      if (!window.XMLHttpRequest || !window.FormData || !("upload" in new XMLHttpRequest())) return;
+      if (!window.XMLHttpRequest || !window.FormData || !window.DOMParser || !("upload" in new XMLHttpRequest())) return;
 
       form.addEventListener("submit", function (event) {
         if (!input.files || !input.files.length) return;
@@ -64,6 +64,23 @@
 
         request.addEventListener("load", function () {
           clearInterval(timer);
+
+          // A result page is swapped in rather than written over this one,
+          // so the picked file is still in hand for the player.
+          var file = input.files[0];
+          var page = new DOMParser().parseFromString(request.responseText, "text/html");
+          var result = page.querySelector("main");
+          if (request.status === 200 && result && result.querySelector("[data-layer-map]")) {
+            document.title = page.title;
+            var main = document.querySelector("main");
+            main.replaceWith(document.adoptNode(result));
+            window.scrollTo(0, 0);
+            window.attachPlayer(result, file);
+            return;
+          }
+
+          // Anything else (an error flashed back onto the form) is a full
+          // page with its own script: write it out as before.
           document.open();
           document.write(request.responseText);
           document.close();
