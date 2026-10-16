@@ -94,9 +94,9 @@ def test_assign_roles_falls_back_to_family_letter_without_repeats():
 
 
 def test_active_parts_lists_only_layers_playing_in_the_window():
-    quiet = Track(key="basses", label="Bass", entry_time=None, entry_measure=None,
+    quiet = Track(key="bass", label="Bass", entry_time=None, entry_measure=None,
                   times=[0.0, 1.0, 2.0, 3.0], values=[0.0, 0.0, 0.9, 0.9])
-    loud = Track(key="voix", label="Vocals", entry_time=None, entry_measure=None,
+    loud = Track(key="vocals", label="Vocals", entry_time=None, entry_measure=None,
                  times=[0.0, 1.0, 2.0, 3.0], values=[0.9, 0.9, 0.0, 0.0])
 
     y = _block([261.63], 8.0, 0.4)

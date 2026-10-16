@@ -2,7 +2,7 @@ import pytest
 
 from song_map import SongMap, build_song_map
 
-EXPECTED_TRACK_KEYS = {"percussions", "basses", "accords", "voix"}
+EXPECTED_TRACK_KEYS = {"percussion", "bass", "chords", "vocals"}
 
 
 def test_build_song_map_structure(sample_audio):

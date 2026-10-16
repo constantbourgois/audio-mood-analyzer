@@ -1,24 +1,23 @@
 """
-Reconnaissance d'accords par correspondance de gabarits (template matching)
-sur un chromagramme synchronisé aux temps détectés.
+Chord recognition by template matching on a beat-synchronous chromagram.
 
-Approche assumée, sans modèle entraîné : pour chaque intervalle entre deux
-temps, on résume le chromagramme par sa médiane en un vecteur de 12 hauteurs,
-puis on le compare par similarité cosinus aux 24 gabarits d'accords parfaits
-(12 majeurs + 12 mineurs). Le meilleur score l'emporte ; sous un seuil, on ne
-déclare aucun accord plutôt que d'en inventer un.
+A deliberate choice, with no trained model: for each interval between two
+beats, the chromagram is summarised by its median into a 12-pitch vector,
+then compared by cosine similarity with the 24 triad templates (12 major +
+12 minor). The best score wins; below a threshold, no chord is reported
+rather than one being invented.
 
-Limites à connaître :
-- seulement des accords parfaits majeurs/mineurs : une septième, un accord
-  enrichi ou un power chord sera ramené au triade le plus proche (souvent le
-  bon fondamental, mais la qualité peut être fausse) ;
-- le chromagramme est calculé sur le signal complet : une batterie forte
-  étale de l'énergie sur les 12 hauteurs et brouille la détection ;
-- le découpage dépend entièrement de la grille de temps : si le suivi de
-  tempo se trompe, les frontières d'accords se trompent avec lui.
+Limits worth knowing:
+- major/minor triads only: a seventh, an extended chord or a power chord is
+  reduced to the nearest triad (often the right root, but the quality may be
+  wrong);
+- the chromagram is computed on the full mix: loud drums spread energy over
+  all 12 pitches and blur the match;
+- segmentation depends entirely on the beat grid: if beat tracking is wrong,
+  the chord boundaries are wrong with it.
 
-À lire comme une transcription approximative à vérifier à l'oreille, pas
-comme une grille d'accords de référence.
+Read it as a rough transcription to check by ear, not as a reference chord
+chart.
 """
 from __future__ import annotations
 
@@ -29,16 +28,16 @@ import librosa
 
 from analysis import NOTE_NAMES
 
-HOP_LENGTH = 512  # même grille que song_map.py
+HOP_LENGTH = 512  # same grid as song_map.py
 
-# Sous ce score de similarité cosinus, le segment est jugé trop ambigu
-# (silence, bruit, harmonie trop dense) pour nommer un accord.
+# Below this cosine similarity the segment is too ambiguous (silence, noise,
+# harmony too dense) to name a chord.
 MIN_SIMILARITY = 0.62
 
-# Intervalles en demi-tons depuis la fondamentale.
+# Intervals in semitones from the root.
 QUALITIES = {
-    "": (0, 4, 7),    # accord parfait majeur -> "Do"
-    "m": (0, 3, 7),   # accord parfait mineur -> "Dom"
+    "": (0, 4, 7),    # major triad -> "C"
+    "m": (0, 3, 7),   # minor triad -> "Cm"
 }
 
 
@@ -55,8 +54,8 @@ class ChordSegment:
 
 
 def _build_templates() -> tuple[np.ndarray, list[str]]:
-    """Une ligne par accord, normalisée : le produit scalaire avec un
-    chroma normalisé donne directement la similarité cosinus."""
+    """One normalised row per chord: its dot product with a normalised
+    chroma is the cosine similarity directly."""
     rows = []
     labels = []
     for suffix, intervals in QUALITIES.items():
@@ -84,8 +83,8 @@ def _match(chroma_vec: np.ndarray) -> str | None:
 
 
 def _deblip(labels: list[str | None]) -> list[str | None]:
-    """Un accord isolé entre deux segments identiques est presque toujours une
-    erreur de trame plutôt qu'un vrai changement d'accord d'un seul temps."""
+    """A single chord between two identical segments is almost always a
+    framing error rather than a real one-beat chord change."""
     smoothed = list(labels)
     for i in range(1, len(labels) - 1):
         if labels[i - 1] == labels[i + 1] and labels[i] != labels[i - 1]:
@@ -100,8 +99,8 @@ def _measure_of(time_sec: float, measure_times) -> int | None:
 
 
 def estimate_chords(y: np.ndarray, sr: int, beat_times, measure_times=None) -> list[ChordSegment]:
-    """Suite d'accords entre les temps détectés, segments consécutifs
-    identiques fusionnés."""
+    """Chord sequence between the detected beats, with consecutive identical
+    segments merged."""
     beat_times = np.asarray(beat_times, dtype=float)
     if len(beat_times) < 2:
         return []
@@ -124,10 +123,9 @@ def estimate_chords(y: np.ndarray, sr: int, beat_times, measure_times=None) -> l
         if label is None:
             continue
         start, end = float(beat_times[i]), float(beat_times[i + 1])
-        # Comparaison des frontières en valeurs brutes : arrondir avant de
-        # comparer empêcherait toute fusion (l'arrondi de la fin d'un segment
-        # ne retombe pas sur le temps suivant), et on obtiendrait un segment
-        # par temps au lieu d'un par accord.
+        # Boundaries are compared unrounded: rounding first would prevent any
+        # merge (a segment's rounded end does not land on the next beat), and
+        # the result would be one segment per beat instead of one per chord.
         if segments and segments[-1].label == label and abs(segments[-1].end_sec - start) < 1e-6:
             segments[-1].end_sec = end
         else:
@@ -145,8 +143,8 @@ def estimate_chords(y: np.ndarray, sr: int, beat_times, measure_times=None) -> l
 
 
 def summarize_chords(segments: list[ChordSegment], top_n: int = 6) -> list[dict]:
-    """Accords les plus présents, par durée cumulée — utile pour reconnaître
-    la couleur harmonique d'un morceau d'un coup d'œil."""
+    """Most present chords, by total duration - useful for seeing a track's
+    harmonic colour at a glance."""
     totals: dict[str, float] = {}
     for segment in segments:
         totals[segment.label] = totals.get(segment.label, 0.0) + segment.duration_sec

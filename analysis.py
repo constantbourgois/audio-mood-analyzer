@@ -1,24 +1,23 @@
 """
-Analyse audio : tonalité, mode, tempo, ambiance (mood) et morceaux similaires
-dans une bibliothèque locale.
+Audio analysis: key, mode, tempo, mood, and similar tracks in a local
+library.
 
-Approche :
-- Tempo : beat tracking (librosa.beat.beat_track).
-- Tonalité / mode : corrélation du profil de hauteurs (chroma) moyen avec les
-  profils de Krumhansl-Schmuckler (majeur/mineur), sur les 12 transpositions
-  possibles. C'est l'algorithme de référence en MIR (Music Information
-  Retrieval) pour ce problème, mais il reste une estimation statistique :
-  sur un morceau ambigu ou très court, il peut se tromper.
-- Ambiance / mood : PAS un modèle entraîné (aucun ML ici), mais une
-  heuristique interprétable inspirée du modèle circumplex de Russell
-  (valence / arousal) : le mode majeur/mineur et la brillance spectrale
-  donnent la valence, le tempo et l'énergie RMS donnent l'arousal. À prendre
-  comme une indication, pas une vérité absolue.
-- Morceaux similaires : PAS de base de données musicale externe (ça
-  demanderait une API tierce avec clé, type AcoustID/AcousticBrainz/Spotify).
-  Ici, on compare le fichier uploadé aux fichiers présents dans library/ (la
-  propre collection de l'utilisateur) via une similarité cosinus sur un
-  vecteur de caractéristiques (chroma + MFCC + tempo).
+Approach:
+- Tempo: beat tracking (librosa.beat.beat_track).
+- Key / mode: correlation of the mean pitch-class profile (chroma) with the
+  Krumhansl-Schmuckler profiles (major/minor), over all 12 transpositions.
+  This is the reference MIR (Music Information Retrieval) algorithm for the
+  problem, but it remains a statistical estimate: on an ambiguous or very
+  short piece it can be wrong.
+- Mood: NOT a trained model (no ML here), but an interpretable heuristic
+  inspired by Russell's circumplex model (valence / arousal): major/minor
+  mode and spectral brightness give the valence, tempo and RMS energy give
+  the arousal. An indication, not ground truth.
+- Similar tracks: NO external music database (that would need a third-party
+  API with a key, such as AcoustID/AcousticBrainz/Spotify). Instead the
+  uploaded file is compared with the files in library/ (the user's own
+  collection) by cosine similarity over a feature vector (chroma + MFCC +
+  tempo).
 """
 from __future__ import annotations
 
@@ -70,12 +69,12 @@ def _normalize(value: float, low: float, high: float) -> float:
 
 
 def estimate_mood(tempo_bpm: float, mode: str, rms_mean: float, centroid_mean: float, sr: int) -> tuple[str, float, float]:
-    # Arousal (énergie perçue) : tempo + énergie RMS
+    # Arousal (perceived energy): tempo + RMS energy
     tempo_component = _normalize(tempo_bpm, 50, 160)
     rms_component = _normalize(rms_mean, 0.01, 0.25)
     arousal = 0.6 * tempo_component + 0.4 * rms_component
 
-    # Valence (positif/négatif) : mode + brillance spectrale
+    # Valence (positive/negative): mode + spectral brightness
     mode_component = 1.0 if mode == "major" else 0.0
     brightness_component = _normalize(centroid_mean, 800, 4000)
     valence = 0.6 * mode_component + 0.4 * brightness_component
@@ -93,11 +92,11 @@ def estimate_mood(tempo_bpm: float, mode: str, rms_mean: float, centroid_mean: f
 
 
 def feature_vector(y: np.ndarray, sr: int, chroma: np.ndarray | None = None, tempo: float | None = None) -> np.ndarray:
-    """Vecteur utilisé pour la similarité entre morceaux (chroma + MFCC + tempo).
+    """Vector used for track similarity (chroma + MFCC + tempo).
 
-    chroma et tempo sont acceptés déjà calculés : l'analyse complète les a
-    généralement en main, et les recalculer doublait le chromagramme et le
-    suivi de tempo à chaque requête.
+    chroma and tempo are accepted precomputed: the full analysis usually
+    already has them, and recomputing them doubled the chromagram and the
+    beat tracking on every request.
     """
     if chroma is None:
         chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
@@ -165,7 +164,7 @@ def _save_cache(library_dir: str, cache: dict) -> None:
 
 
 def find_similar(vec: np.ndarray, library_dir: str, exclude_filename: str | None = None, top_n: int = 3) -> list[dict]:
-    """Compare vec à chaque fichier audio de library_dir (avec cache par mtime)."""
+    """Compare vec with every audio file in library_dir (cached by mtime)."""
     if not os.path.isdir(library_dir):
         return []
 

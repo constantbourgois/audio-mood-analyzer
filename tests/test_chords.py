@@ -22,13 +22,13 @@ def two_chord_audio():
 
 def test_estimate_chords_recognizes_major_and_minor_triads(two_chord_audio):
     y, sr = two_chord_audio
-    beat_times = np.arange(0, 4.0, 0.5)  # grille régulière, indépendante du suivi de tempo
+    beat_times = np.arange(0, 4.0, 0.5)  # regular grid, independent of beat tracking
     segments = estimate_chords(y, sr, beat_times, measure_times=[0.0, 2.0])
 
     labels = [s.label for s in segments]
-    assert "C" in labels, f"major triad not recognised, obtenu : {labels}"
-    assert "Am" in labels, f"minor triad not recognised, obtenu : {labels}"
-    # l'ordre doit suivre le signal : Do avant Lam
+    assert "C" in labels, f"major triad not recognised, got: {labels}"
+    assert "Am" in labels, f"minor triad not recognised, got: {labels}"
+    # the order must follow the signal: C before Am
     assert labels.index("C") < labels.index("Am")
 
 
@@ -37,10 +37,10 @@ def test_estimate_chords_merges_consecutive_identical_segments(two_chord_audio):
     beat_times = np.arange(0, 4.0, 0.5)
     segments = estimate_chords(y, sr, beat_times, measure_times=[0.0, 2.0])
 
-    # Deux accords tenus sur 8 intervalles de temps : la fusion doit produire
-    # un segment par accord, pas un par temps. Un seuil lâche ici laisserait
-    # passer une fusion totalement inopérante.
-    assert len(segments) <= 3, f"segments non fusionnés : {[s.label for s in segments]}"
+    # Two chords held over 8 beat intervals: merging must give one segment
+    # per chord, not one per beat. A loose bound here would let a completely
+    # broken merge pass.
+    assert len(segments) <= 3, f"segments not merged: {[s.label for s in segments]}"
     for previous, current in zip(segments, segments[1:]):
         assert previous.label != current.label or previous.end_sec < current.start_sec
 
@@ -74,7 +74,7 @@ def test_summarize_chords_ranks_by_total_duration():
         ChordSegment(label="C", start_sec=5.0, end_sec=7.0, measure=2),
     ]
     summary = summarize_chords(segments)
-    # Sol : 4 s d'un bloc ; Do : 1 s + 2 s = 3 s cumulées.
+    # G: 4 s in one block; C: 1 s + 2 s = 3 s in total.
     assert [item["label"] for item in summary] == ["G", "C"]
     assert summary[0]["seconds"] == 4.0
     assert summary[1]["seconds"] == 3.0

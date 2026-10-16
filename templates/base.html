@@ -17,12 +17,12 @@
       --muted: #a49a90;
       --accent: #e8904f;
 
-      /* Palette des pistes : validée sur le fond sombre (bande de clarté
-         OKLCH, plancher de chroma, séparation daltonisme, contraste). */
-      --c-percussions: #e2604e;
-      --c-basses: #35a888;
-      --c-accords: #4b8fd6;
-      --c-voix: #b8842c;
+      /* Track palette: validated on the dark background (OKLCH lightness
+         band, chroma floor, colour-blind separation, contrast). */
+      --c-percussion: #e2604e;
+      --c-bass: #35a888;
+      --c-chords: #4b8fd6;
+      --c-vocals: #b8842c;
       --c-chord-major: #4b8fd6;
       --c-chord-minor: #b8842c;
     }
@@ -165,7 +165,7 @@
       .progress-fill { transition: none; }
     }
 
-    /* --- Ambiance : le résultat principal, traité en conséquence --- */
+    /* --- Mood: the main result, styled accordingly --- */
     .mood-banner {
       background: var(--surface-2);
       border: 1px solid var(--border-strong);
@@ -207,7 +207,7 @@
     ul.modes li:last-child { border-bottom: none; }
     ul.modes li.best { font-weight: 700; color: var(--text); font-size: 1rem; }
 
-    /* --- Listes (accords, morceaux similaires) --- */
+    /* --- Lists (chords, similar tracks) --- */
     ul.similar { list-style: none; padding: 0; margin: 0; max-height: 320px; overflow-y: auto; }
     ul.similar li {
       display: flex;
@@ -250,10 +250,10 @@
     .section-row { margin: 0.9rem 0 1.1rem; }
     .section-svg { width: 100%; height: auto; display: block; }
     .section-block { fill-opacity: 0.34; stroke-width: 1.5; }
-    .section-block-0 { fill: var(--c-percussions); stroke: var(--c-percussions); }
-    .section-block-1 { fill: var(--c-basses); stroke: var(--c-basses); }
-    .section-block-2 { fill: var(--c-accords); stroke: var(--c-accords); }
-    .section-block-3 { fill: var(--c-voix); stroke: var(--c-voix); }
+    .section-block-0 { fill: var(--c-percussion); stroke: var(--c-percussion); }
+    .section-block-1 { fill: var(--c-bass); stroke: var(--c-bass); }
+    .section-block-2 { fill: var(--c-chords); stroke: var(--c-chords); }
+    .section-block-3 { fill: var(--c-vocals); stroke: var(--c-vocals); }
     .section-label { fill: var(--text); font-size: 17px; font-weight: 700; }
 
     ol.timeline { list-style: none; padding: 0; margin: 0; counter-reset: none; }
@@ -291,7 +291,7 @@
       .timeline-when { flex: 1 1 100%; text-align: left; padding-left: 2.4rem; }
     }
 
-    /* --- Carte de la chanson --- */
+    /* --- Song map --- */
     .song-map { margin: 0.9rem 0 0.5rem; }
     .grid-row { margin-bottom: 0.35rem; }
     .grid-svg, .track-svg, .chord-svg { width: 100%; height: auto; display: block; }
@@ -308,10 +308,10 @@
       margin-bottom: 0.35rem;
     }
     .track-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; align-self: center; }
-    .track-dot-percussions { background: var(--c-percussions); }
-    .track-dot-basses { background: var(--c-basses); }
-    .track-dot-accords { background: var(--c-accords); }
-    .track-dot-voix { background: var(--c-voix); }
+    .track-dot-percussion { background: var(--c-percussion); }
+    .track-dot-bass { background: var(--c-bass); }
+    .track-dot-chords { background: var(--c-chords); }
+    .track-dot-vocals { background: var(--c-vocals); }
     .track-entry { color: var(--muted); font-size: 0.78rem; }
     .track-plot {
       border-radius: 8px;
@@ -320,18 +320,18 @@
       border: 1px solid var(--border);
     }
 
-    /* Aires des pistes : la couleur est portée par la classe, pas par le SVG. */
+    /* Track areas: the colour comes from the class, not from the SVG. */
     .track-area { fill-opacity: 0.32; stroke-width: 1.5; }
-    .track-area-percussions { fill: var(--c-percussions); stroke: var(--c-percussions); }
-    .track-area-basses { fill: var(--c-basses); stroke: var(--c-basses); }
-    .track-area-accords { fill: var(--c-accords); stroke: var(--c-accords); }
-    .track-area-voix { fill: var(--c-voix); stroke: var(--c-voix); }
+    .track-area-percussion { fill: var(--c-percussion); stroke: var(--c-percussion); }
+    .track-area-bass { fill: var(--c-bass); stroke: var(--c-bass); }
+    .track-area-chords { fill: var(--c-chords); stroke: var(--c-chords); }
+    .track-area-vocals { fill: var(--c-vocals); stroke: var(--c-vocals); }
 
     .track-entry-line { stroke-width: 2; stroke-dasharray: 4 2; }
-    .track-entry-line-percussions { stroke: var(--c-percussions); }
-    .track-entry-line-basses { stroke: var(--c-basses); }
-    .track-entry-line-accords { stroke: var(--c-accords); }
-    .track-entry-line-voix { stroke: var(--c-voix); }
+    .track-entry-line-percussion { stroke: var(--c-percussion); }
+    .track-entry-line-bass { stroke: var(--c-bass); }
+    .track-entry-line-chords { stroke: var(--c-chords); }
+    .track-entry-line-vocals { stroke: var(--c-vocals); }
 
     .chord-block { fill-opacity: 0.30; stroke-width: 1; }
     .chord-block-major { fill: var(--c-chord-major); stroke: var(--c-chord-major); }
@@ -420,10 +420,10 @@
       border: 1px solid var(--border);
     }
     .layer-block { fill-opacity: 0.55; stroke-width: 1.5; }
-    .layer-block-0 { fill: var(--c-percussions); stroke: var(--c-percussions); }
-    .layer-block-1 { fill: var(--c-basses); stroke: var(--c-basses); }
-    .layer-block-2 { fill: var(--c-accords); stroke: var(--c-accords); }
-    .layer-block-3 { fill: var(--c-voix); stroke: var(--c-voix); }
+    .layer-block-0 { fill: var(--c-percussion); stroke: var(--c-percussion); }
+    .layer-block-1 { fill: var(--c-bass); stroke: var(--c-bass); }
+    .layer-block-2 { fill: var(--c-chords); stroke: var(--c-chords); }
+    .layer-block-3 { fill: var(--c-vocals); stroke: var(--c-vocals); }
 
     @media (max-width: 480px) {
       body { padding: 1.75rem 0.85rem 3rem; }
