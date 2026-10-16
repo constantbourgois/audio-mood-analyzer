@@ -33,6 +33,35 @@ times listed.
   server nothing. It needs the upload to have gone through the page's
   script; after a reload, the timeline shows without the player.
 
+## Architecture
+
+A single Flask app, server-rendered, with no database and no build step.
+
+```
+browser ──upload──▶ app.py /analyze
+                      ├─ instruments.load_audio_lite   decode to mono float32
+                      ├─ layers.analyse_layers         layer timeline
+                      ├─ musical.analyse_musical       tempo, key, modes (via keymode.py)
+                      └─ viz.layer_track_svg           inline SVG bars
+browser ◀─HTML────── templates/result.html
+```
+
+- **Stateless.** The upload goes to a temp file that is deleted once the
+  response is built; nothing is stored between requests.
+- **numpy only** on the request path. Every analysis step is plain numpy
+  with chunked STFTs, which keeps it inside a 512 MB instance.
+- **Templates** (`templates/`): `base.html` holds the whole stylesheet and
+  the player script; `index.html` the upload screen and its script (drop
+  zone, XHR upload with progress); `result.html` the result page.
+- **Client side.** After the upload, the result page is swapped into the
+  current page instead of loaded fresh, so the picked file is still in hand.
+  The player then plays it from an object URL, and the audio is never sent
+  back from the server.
+- **Serving.** gunicorn with 2 sync workers, all set in `gunicorn.conf.py`.
+- **Dormant modules.** `analysis.py`, `chords.py`, `song_map.py`,
+  `structure.py` and `instruments.py`'s tagger are kept and tested but not
+  imported by `app.py` (see *Memory* below).
+
 ## Run it locally
 
 ```bash
