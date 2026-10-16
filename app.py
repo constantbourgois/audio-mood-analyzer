@@ -59,7 +59,7 @@ def file_too_large(_exc):
 
 @app.route("/", methods=["GET"])
 def index():
-    return render_template("index.html")
+    return render_template("index.html", max_mb=MAX_CONTENT_LENGTH // (1024 * 1024))
 
 
 @app.route("/analyze", methods=["POST"])

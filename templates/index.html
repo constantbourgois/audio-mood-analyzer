@@ -1,15 +1,45 @@
 {% extends "base.html" %}
 {% block title %}Audio Analyser{% endblock %}
 {% block content %}
-  <h1>Audio Analyser</h1>
-  <p class="subtitle">Tempo, key, and which layers play — when they enter and leave.</p>
+  <header class="hero">
+    <p class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2" y="9" width="3" height="6" rx="1.5"/><rect x="7" y="5" width="3" height="14" rx="1.5"/>
+        <rect x="12" y="2" width="3" height="20" rx="1.5"/><rect x="17" y="7" width="3" height="10" rx="1.5"/>
+      </svg>
+      Audio Analyser
+    </p>
+    <h1 class="hero-title">See how a track is built.</h1>
+    <p class="hero-lede">Drop in a song to get its tempo and key, and a timeline of when the bass, drums, harmony and lead come in and drop out.</p>
+  </header>
 
-  <div class="card">
+  <div class="card upload-card">
     <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data" id="analyse-form">
-      <label for="audio_file">Audio file (.wav, .flac, .ogg, .mp3, .m4a)</label>
-      <input type="file" id="audio_file" name="audio_file" accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" required>
+      {# The label is the drop zone, so a click anywhere on it opens the
+         picker and the native input stays the single source of truth. #}
+      <label for="audio_file" class="dropzone" id="dropzone">
+        <input type="file" id="audio_file" name="audio_file" class="visually-hidden"
+               accept="audio/*,.wav,.flac,.ogg,.mp3,.m4a" required>
+        <span class="dropzone-empty">
+          <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>
+          </svg>
+          <span class="dropzone-title only-pointer">Drop an audio file here, or <span class="dropzone-link">browse</span></span>
+          <span class="dropzone-title only-touch"><span class="dropzone-link">Choose an audio file</span></span>
+          <span class="dropzone-meta">WAV, FLAC, OGG, MP3 or M4A · up to {{ max_mb }}&nbsp;MB</span>
+        </span>
+        <span class="dropzone-file" hidden>
+          <svg class="file-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span class="file-text">
+            <span class="file-name" id="file-name"></span>
+            <span class="file-meta" id="file-meta"></span>
+          </span>
+          <span class="dropzone-link file-change">Change</span>
+        </span>
+      </label>
+      <p class="dropzone-error" id="dropzone-error" role="alert" hidden></p>
 
-      <button type="submit" id="analyse-button">Analyse</button>
+      <button type="submit" id="analyse-button" class="analyse-button">Analyse track</button>
     </form>
 
     <div id="progress" class="progress" hidden>
@@ -17,6 +47,139 @@
       <p class="progress-label"><span id="progress-text">Uploading…</span><span id="progress-time"></span></p>
     </div>
   </div>
+
+  <h2 class="features-heading" id="features-heading">What you get</h2>
+  <section class="features" aria-labelledby="features-heading">
+    <div class="feature">
+      <p class="feature-figure">128 <span>BPM</span></p>
+      <p class="feature-title">Tempo</p>
+      <p class="feature-text">Plus the half- and double-time readings it could also be.</p>
+    </div>
+    <div class="feature">
+      <p class="feature-figure">A <span>minor</span></p>
+      <p class="feature-title">Key &amp; mode</p>
+      <p class="feature-text">Best match, how sure it is, and the closest church modes.</p>
+    </div>
+    <div class="feature feature-wide">
+      <div class="feature-layers" aria-hidden="true">
+        <span class="fl fl-0" style="--from: 0%; --to: 100%"></span>
+        <span class="fl fl-1" style="--from: 12%; --to: 94%"></span>
+        <span class="fl fl-2" style="--from: 30%; --to: 100%"></span>
+        <span class="fl fl-3" style="--from: 52%; --to: 84%"></span>
+      </div>
+      <p class="feature-title">Layers over time</p>
+      <p class="feature-text">Click any bar to hear that moment — playback stays on your device.</p>
+    </div>
+  </section>
+
+  <script>
+    // Drop zone: drag-and-drop onto the label, plus a summary of the picked
+    // file. Everything still goes through the native input, so the upload
+    // script below and a plain form submit both see the same file.
+    (function () {
+      var zone = document.getElementById("dropzone");
+      var input = document.getElementById("audio_file");
+      var error = document.getElementById("dropzone-error");
+      var empty = zone.querySelector(".dropzone-empty");
+      var chosen = zone.querySelector(".dropzone-file");
+      var name = document.getElementById("file-name");
+      var meta = document.getElementById("file-meta");
+      var accepted = ["wav", "flac", "ogg", "mp3", "m4a"];
+      var maxMb = {{ max_mb }};
+
+      function size(bytes) {
+        return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1024)) + " KB";
+      }
+      function clock(sec) {
+        var s = Math.round(sec), m = Math.floor(s / 60);
+        return m + ":" + ("0" + (s % 60)).slice(-2);
+      }
+      function reset() {
+        input.value = "";
+        empty.hidden = false;
+        chosen.hidden = true;
+        zone.classList.remove("has-file");
+      }
+      function fail(message) {
+        reset();
+        error.textContent = message;
+        error.hidden = false;
+        zone.classList.add("is-invalid");
+      }
+
+      function show() {
+        var file = input.files && input.files[0];
+        error.hidden = true;
+        zone.classList.remove("is-invalid");
+        if (!file) { reset(); return; }
+
+        // Same checks the server makes, caught before a long upload.
+        var ext = (file.name.split(".").pop() || "").toLowerCase();
+        if (accepted.indexOf(ext) === -1) {
+          return fail("That isn't a supported audio file. Use WAV, FLAC, OGG, MP3 or M4A.");
+        }
+        if (file.size > maxMb * 1024 * 1024) {
+          return fail(file.name + " is " + size(file.size) + " — the limit is " + maxMb + " MB.");
+        }
+
+        name.textContent = file.name;
+        meta.textContent = size(file.size);
+        empty.hidden = true;
+        chosen.hidden = false;
+        zone.classList.add("has-file");
+
+        // Length, read locally from the file's own header: costs nothing,
+        // and nothing is shown if this browser cannot decode the format.
+        if (window.URL && URL.createObjectURL) {
+          var probe = document.createElement("audio");
+          var url = URL.createObjectURL(file);
+          probe.preload = "metadata";
+          probe.addEventListener("loadedmetadata", function () {
+            if (isFinite(probe.duration) && input.files[0] === file) {
+              meta.textContent = clock(probe.duration) + " · " + size(file.size);
+            }
+            URL.revokeObjectURL(url);
+          });
+          probe.addEventListener("error", function () { URL.revokeObjectURL(url); });
+          probe.src = url;
+        }
+      }
+
+      input.addEventListener("change", show);
+
+      // dragenter/dragleave fire for every child crossed, so count them
+      // rather than flicker the highlight on and off.
+      var depth = 0;
+      zone.addEventListener("dragenter", function (e) {
+        e.preventDefault();
+        depth++;
+        zone.classList.add("is-dragging");
+      });
+      zone.addEventListener("dragover", function (e) { e.preventDefault(); });
+      zone.addEventListener("dragleave", function () {
+        if (--depth <= 0) { depth = 0; zone.classList.remove("is-dragging"); }
+      });
+      zone.addEventListener("drop", function (e) {
+        e.preventDefault();
+        depth = 0;
+        zone.classList.remove("is-dragging");
+        var files = e.dataTransfer && e.dataTransfer.files;
+        if (!files || !files.length) return;
+        try {
+          input.files = files;
+        } catch (err) {
+          return fail("This browser can't take a dropped file here — click to choose one instead.");
+        }
+        show();
+      });
+      // A file dropped beside the zone would otherwise open in the tab and
+      // leave the app.
+      window.addEventListener("dragover", function (e) { e.preventDefault(); });
+      window.addEventListener("drop", function (e) { e.preventDefault(); });
+
+      show();   // the browser may keep the last file on back/forward
+    })();
+  </script>
 
   <script>
     (function () {
@@ -38,6 +201,7 @@
         event.preventDefault();
 
         button.disabled = true;
+        form.classList.add("is-busy");
         box.hidden = false;
         var started = Date.now();
         var timer = setInterval(function () {
@@ -91,6 +255,7 @@
           box.hidden = true;
           box.classList.remove("is-working");
           button.disabled = false;
+          form.classList.remove("is-busy");
           form.submit();       // fall back to a normal submit
         };
         request.addEventListener("error", failed);
@@ -101,11 +266,15 @@
     })();
   </script>
 
-  <p class="note">
-    Layers are measured from the signal — frequency register plus whether the
-    sound sustains or arrives as sharp attacks — so bass, drums and sustained
-    harmony are separated without guessing instrument names. Tempo, key and
-    mode are measured too. Chords and song structure are disabled on this
-    deployment to fit a memory-limited free hosting plan.
-  </p>
+  <details class="how">
+    <summary>How it works</summary>
+    <p>
+      Layers are measured from the signal — frequency register plus whether
+      the sound sustains or arrives as sharp attacks — so bass, drums and
+      sustained harmony are separated without guessing instrument names.
+      Tempo comes from how regularly the sound gets sudden attacks; the key
+      from the track's overall pitch content. Chords and song structure are
+      disabled on this deployment to fit a memory-limited free hosting plan.
+    </p>
+  </details>
 {% endblock %}
