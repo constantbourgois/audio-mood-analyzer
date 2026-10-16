@@ -165,6 +165,184 @@
       .progress-fill { transition: none; }
     }
 
+    /* --- Upload screen --- */
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0);
+      white-space: nowrap; border: 0;
+    }
+
+    .hero { margin: 0.5rem 0 1.75rem; }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0 0 1.4rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .brand-mark { width: 1.15rem; height: 1.15rem; fill: var(--accent); }
+    .hero-title {
+      font-size: clamp(1.9rem, 6vw, 2.6rem);
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+      margin: 0 0 0.75rem;
+    }
+    .hero-lede {
+      color: var(--muted);
+      font-size: 1.02rem;
+      line-height: 1.55;
+      margin: 0;
+      max-width: 34rem;
+    }
+
+    .upload-card { padding: 1.1rem; }
+
+    .dropzone {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 11rem;
+      margin: 0;
+      padding: 1.5rem 1.25rem;
+      border: 1.5px dashed var(--border-strong);
+      border-radius: 12px;
+      background: var(--surface-2);
+      cursor: pointer;
+      font-weight: 400;
+      text-align: center;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .dropzone:hover,
+    .dropzone.is-dragging { border-color: var(--accent); background: rgba(232, 144, 79, 0.07); }
+    .dropzone:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .dropzone.is-dragging { border-style: solid; }
+    .dropzone.is-invalid { border-color: var(--c-percussion); }
+    .dropzone.has-file {
+      min-height: 0;
+      justify-content: flex-start;
+      text-align: left;
+      border-style: solid;
+      border-color: var(--border);
+      padding: 0.95rem 1.1rem;
+    }
+    .dropzone [hidden] { display: none !important; }
+
+    .dropzone-empty { display: flex; flex-direction: column; align-items: center; gap: 0.55rem; }
+    .dropzone-icon {
+      width: 2.4rem; height: 2.4rem;
+      padding: 0.55rem;
+      border-radius: 50%;
+      background: rgba(232, 144, 79, 0.14);
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.15s ease;
+    }
+    .dropzone.is-dragging .dropzone-icon { transform: translateY(-3px); }
+    .dropzone-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+    .dropzone-link { white-space: nowrap; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+    .dropzone-meta { font-size: 0.8rem; color: var(--muted); }
+    .only-touch { display: none; }
+    @media (hover: none) and (pointer: coarse) {
+      .only-pointer { display: none; }
+      .only-touch { display: inline; }
+    }
+
+    .dropzone-file { display: flex; align-items: center; gap: 0.85rem; width: 100%; min-width: 0; }
+    .file-icon {
+      flex: 0 0 auto;
+      width: 2.5rem; height: 2.5rem;
+      padding: 0.6rem;
+      border-radius: 10px;
+      background: rgba(232, 144, 79, 0.14);
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .file-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+    .file-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-meta { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .file-change { flex: 0 0 auto; font-size: 0.85rem; font-weight: 600; }
+    #analyse-form.is-busy .dropzone { pointer-events: none; opacity: 0.7; }
+
+    .dropzone-error { margin: 0.6rem 0.2rem 0; font-size: 0.85rem; color: #f7b3a8; }
+
+    .analyse-button { display: block; width: 100%; margin-top: 0.9rem; padding: 0.85rem 1.5rem; font-size: 1rem; }
+
+    .upload-card .progress { margin: 0.9rem 0.2rem 0.1rem; }
+
+    .features-heading { margin: 2rem 0 0.75rem; }
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.7rem;
+      margin: 0;
+    }
+    .feature {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.1rem 1.05rem;
+    }
+    .feature-wide { grid-column: 1 / -1; }
+    .feature-figure {
+      margin: 0 0 0.55rem;
+      font-size: 1.45rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .feature-figure span { font-size: 0.85rem; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+    .feature-title { margin: 0 0 0.2rem; font-size: 0.88rem; font-weight: 700; }
+    .feature-text { margin: 0; font-size: 0.83rem; color: var(--muted); line-height: 1.5; }
+    .feature-layers { display: grid; gap: 5px; margin: 0.15rem 0 0.85rem; }
+    .fl {
+      height: 7px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      position: relative;
+    }
+    .fl::after {
+      content: "";
+      position: absolute;
+      top: 0; bottom: 0;
+      left: var(--from);
+      right: calc(100% - var(--to));
+      border-radius: 4px;
+      opacity: 0.8;
+    }
+    .fl-0::after { background: var(--c-percussion); }
+    .fl-1::after { background: var(--c-bass); }
+    .fl-2::after { background: var(--c-chords); }
+    .fl-3::after { background: var(--c-vocals); }
+
+    details.how { margin-top: 1.4rem; font-size: 0.84rem; color: var(--muted); }
+    details.how summary {
+      cursor: pointer;
+      width: fit-content;
+      font-weight: 600;
+      color: var(--text);
+      list-style-position: inside;
+    }
+    details.how summary:hover { color: var(--accent); }
+    details.how p { margin: 0.6rem 0 0; line-height: 1.6; }
+
+    @media (max-width: 480px) {
+      .hero { margin-top: 0; }
+      .dropzone { min-height: 9rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .dropzone, .dropzone-icon { transition: none; }
+    }
+
     /* --- Mood: the main result, styled accordingly --- */
     .mood-banner {
       background: var(--surface-2);
