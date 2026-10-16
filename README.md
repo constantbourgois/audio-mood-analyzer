@@ -1,7 +1,8 @@
 # Audio Analyser
 
-Upload an audio file and see its **tempo and key**, and **which layers of
-the arrangement are playing, and when each one enters and leaves**.
+Drop in an audio file and see its **tempo and key**, and **which layers of
+the arrangement are playing, and when each one enters and leaves** — then
+listen to any moment by clicking the timeline.
 
 Live at <https://audio-mood-analyzer.onrender.com> (free tier — the instance
 sleeps after 15 minutes idle, so the first request after a pause waits on a
@@ -17,10 +18,20 @@ cold start).
 Each layer is drawn as a bar on a shared time axis, with its entry and exit
 times listed.
 
-The result page plays the file back against those bars: click a bar or an
-entry time to listen from that point (space plays/pauses, arrows step 5 s).
-Playback uses the copy already on your disk — the audio is never sent back
-from the server.
+### Using it
+
+- **Upload screen**: drag a file onto the drop zone or click it to pick one.
+  The file's name, length and size show before anything is sent, and the
+  format and 40 MB checks run right away, so a wrong file is caught before
+  a long upload. Uploads show real progress, then an "Analysing…" state.
+- **Result page**: a *Tempo & key* card (BPM with its half/double-time
+  readings, key with a confidence label and the closest church modes),
+  then the layer timeline.
+- **Player**: click a bar or an entry time to listen from that point; space
+  plays/pauses, arrows step 5 s. Playback uses the copy already on your
+  device — the audio is never sent back from the server, so it costs the
+  server nothing. It needs the upload to have gone through the page's
+  script; after a reload, the timeline shows without the player.
 
 ## Run it locally
 
@@ -56,8 +67,11 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-77 tests, about 30 seconds. They generate their audio in memory, so no sample
-files are needed.
+93 tests, well under a minute; the 6 YAMNet tests skip when
+`ai-edge-litert` is not installed. They generate their audio in memory, so
+no sample files are needed. The app-only tests (`tests/test_app.py`,
+`test_layers.py`, `test_musical.py`, `test_modes.py`) run with just
+`requirements.txt` plus pytest.
 
 **Use Python 3.11 for this** (what the deployment pins — see
 `.python-version`). `ai-edge-litert` and numba do not publish wheels for
@@ -166,12 +180,21 @@ instrument name is worse than an honest register.
 
 ## Deployment
 
-Render, free plan, auto-deploying from `main`.
+Render, free plan, auto-deploying every commit on `main`. The service is
+configured in the Render dashboard, not as a Blueprint, so `render.yaml` is
+documentation of the intended setup rather than what Render reads.
 
 - Build: `pip install -r requirements.txt`
-- Start: `gunicorn -c gunicorn.conf.py app:app` — no flags; workers (2),
-  timeout (300 s) and bind all come from `gunicorn.conf.py`
+- Start (dashboard): `gunicorn -c gunicorn.conf.py --timeout 300 -b 0.0.0.0:$PORT app:app`.
+  Those flags repeat what `gunicorn.conf.py` already sets, so they are
+  harmless; the bare `gunicorn -c gunicorn.conf.py app:app` in
+  `render.yaml` is equivalent. Never add `-w` there (see below).
 - `SECRET_KEY` set as an environment variable
+- The boot log should show `[gunicorn.conf.py] effective worker count: 2`.
+
+There is no other deployment: a Vercel project that had been linked to the
+repo (and had failed every build since early September, for want of
+Python 3.11) has been removed.
 
 Everything the deployment needs is in `gunicorn.conf.py` rather than in
 start-command flags, so a platform running a bare `gunicorn app:app` still
@@ -190,17 +213,22 @@ binds correctly.
    not change despite a successful deploy. Fix: redeploy with "Clear build
    cache" rather than pushing again.
 
-## Memory, and why the rest of the app is switched off
+## Memory, and why chords and structure are switched off
 
 The free plan gives 512 MB. Measured, fully warmed, with no request in
 flight:
 
 | Stack | Resident |
 | --- | --- |
-| flask + numpy + soundfile + soxr (what runs now) | **~65 MB** |
+| flask + numpy + soundfile + soxr (what runs now: layers, tempo, key) | **~65 MB** |
 | the previous librosa pipeline | **~503 MB** |
 
-The breakdown for the second: `scipy.signal` costs +68 MB on import,
+Analysing a request adds a temporary peak on top: on a 4-minute file,
+~36 MB for the layers and ~25 MB for tempo and key, one after the other
+(every STFT is chunked so numpy's complex128 output never covers the whole
+track at once).
+
+The breakdown for the librosa pipeline: `scipy.signal` costs +68 MB on import,
 numba/LLVM +55 MB before compiling anything, and the first JIT compile a
 further +74 MB. That left essentially nothing for an actual request, which
 is what caused repeated OOM crashes.
@@ -225,8 +253,14 @@ not install ~450 MB of libraries it never loads.
 - Register, not instruments. See above.
 - No vocals layer. Worth noting YAMNet *is* dependable at detecting singing,
   so a narrow hybrid using it for voice alone is a reasonable addition.
-- Validated against one track. Other material has not been checked against
-  ground truth.
+- Layer timings were validated against one track with entry times supplied
+  by ear. Tempo and key were compared with the previous librosa pipeline on
+  seven recordings, not against annotated ground truth.
+- Tempo can come out at half or double the felt speed — the page lists
+  both readings for that reason.
+- One key for the whole track: a song that modulates gets its dominant key.
+- The player depends on the browser decoding the file locally; some `.m4a`
+  files will analyse fine but not play back.
 - Uploads are capped at 40 MB (`MAX_CONTENT_LENGTH` in `app.py`).
 - The free instance sleeps after 15 minutes idle; the upload page shows a
   progress bar and an elapsed timer, which also covers that cold start.
