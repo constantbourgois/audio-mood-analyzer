@@ -36,9 +36,8 @@ Then open <http://127.0.0.1:5050>. That is Flask's development server with
 `debug=True`, so it reloads when you edit a file. Use `PORT=8000 python
 app.py` if 5050 is taken.
 
-To run it under gunicorn, as the deployment does — same worker count and
-boot logging (production additionally overrides the timeout, see
-Deployment):
+To run it under gunicorn exactly as the deployment does (same workers,
+timeout and boot logging):
 
 ```bash
 PORT=5050 SECRET_KEY=anything gunicorn -c gunicorn.conf.py app:app
@@ -170,7 +169,8 @@ instrument name is worse than an honest register.
 Render, free plan, auto-deploying from `main`.
 
 - Build: `pip install -r requirements.txt`
-- Start: `gunicorn -c gunicorn.conf.py --timeout 300 -b 0.0.0.0:$PORT app:app`
+- Start: `gunicorn -c gunicorn.conf.py app:app` — no flags; workers (2),
+  timeout (300 s) and bind all come from `gunicorn.conf.py`
 - `SECRET_KEY` set as an environment variable
 
 Everything the deployment needs is in `gunicorn.conf.py` rather than in

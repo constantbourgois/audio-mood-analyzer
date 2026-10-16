@@ -7,13 +7,12 @@ bare `gunicorn app:app` (as Render's default start command does) would
 otherwise fall back to binding 127.0.0.1:8000 — unreachable, so the platform's
 port scan finds nothing — and to the default 30s timeout.
 
-app.py no longer imports librosa/scipy/numba at all (see app.py's own
-comment): the deployed route only does instrument recognition, which needs
-nothing heavier than numpy and a small TFLite interpreter. That stack
-measured at ~65 MB fully warmed, against ~500 MB for the previous
-librosa-based pipeline on this plan's 512 MiB limit — the actual cause of
-this app's earlier OOM crashes. With that much headroom, two workers is
-worth having back for real concurrency, at essentially no OOM risk.
+app.py imports nothing heavier than numpy (see app.py's own comment): layer
+detection, tempo and key are all plain numpy. That stack measured at ~65 MB
+fully warmed, against ~500 MB for the previous librosa-based pipeline on
+this plan's 512 MiB limit - the actual cause of this app's earlier OOM
+crashes. With that much headroom, two workers is worth having back for real
+concurrency, at essentially no OOM risk.
 """
 import os
 import sys
@@ -22,9 +21,12 @@ bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 
 workers = 2
 
-# Loading a big file and running it through the tagger is fast now that
-# nothing here is JIT-compiled, but a large upload still takes real time.
-timeout = 120
+# A sync worker is busy for the whole request, including reading the upload
+# body, so a 40 MB file over a slow mobile link counts against this as much
+# as the analysis does - and on this plan's 0.15 of a core the analysis
+# itself runs several times slower than on a laptop. 300 s is what the live
+# start command has been passing as --timeout; it now lives here instead.
+timeout = 300
 
 preload_app = True
 
