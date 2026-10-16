@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from analysis import (
+from keymode import (
     MODE_INTERVALS,
     MODE_PROFILES,
     NOTE_NAMES,

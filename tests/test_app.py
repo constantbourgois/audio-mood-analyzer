@@ -49,3 +49,11 @@ def test_result_page_carries_player_hooks(client, sample_wav_bytes):
     assert 'data-duration="2.0"' in body
     assert "<div class=\"card player\" data-player hidden>" in body
     assert "window.attachPlayer" in body
+
+
+def test_result_page_shows_tempo_and_key_card(client, sample_wav_bytes):
+    data = {"audio_file": (sample_wav_bytes, "pytest_sample.wav")}
+    body = client.post("/analyze", data=data, content_type="multipart/form-data").data.decode("utf-8")
+    assert "Tempo &amp; key" in body
+    # A 2 s tone is too short to call a tempo, and the page says so plainly.
+    assert "No steady beat" in body

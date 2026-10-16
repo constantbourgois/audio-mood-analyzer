@@ -18,6 +18,47 @@
   </div>
 
   <div class="card">
+    <h2>Tempo &amp; key</h2>
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">Tempo</div>
+        {% if musical.tempo_bpm %}
+          <div class="value">{{ musical.tempo_bpm | round | int }} BPM</div>
+          {% if musical.tempo_alternatives %}
+            <div class="metric-note">or felt at {{ musical.tempo_alternatives | join(" / ") }}</div>
+          {% endif %}
+        {% else %}
+          <div class="value value-none">No steady beat</div>
+        {% endif %}
+      </div>
+      <div class="metric">
+        <div class="label">Key</div>
+        {% if musical.key %}
+          <div class="value">{{ musical.key }}</div>
+          <div class="metric-note">{{ musical.key_strength }} ({{ "%.2f" | format(musical.key_confidence) }})</div>
+        {% else %}
+          <div class="value value-none">Unclear</div>
+        {% endif %}
+      </div>
+    </div>
+    {% if musical.modes %}
+      <ul class="modes">
+        {% for candidate in musical.modes %}
+          <li{% if loop.first %} class="best"{% endif %}><span>{{ candidate.label }}</span><span>{{ "%.2f" | format(candidate.confidence) }}</span></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    <p class="note">
+      Tempo comes from how regularly the sound gets sudden attacks; a beat
+      repeats just as well at half and double speed, so the reading you
+      feel may be one of the alternatives. The key is the best match of the
+      track's overall pitch content against major and minor profiles, with
+      the closest modes listed below it — a single, whole-track estimate,
+      so a song that modulates gets its dominant key.
+    </p>
+  </div>
+
+  <div class="card">
     <h2>Layers over time</h2>
     {% if layer_map.layers %}
       <p class="muted">{{ layer_map.layers | length }} found, in order of entrance<span class="player-hint" data-player-hint hidden> — click a bar or a time to listen from there</span></p>
@@ -54,8 +95,8 @@
     Instrument <em>names</em> are deliberately not claimed. "Low end" is
     something the signal shows; calling it an electric bass rather than a
     synth bass would be a guess, and a wrong name is worse than an honest
-    register. Tempo, key, chords and song structure are disabled on this
-    deployment — they need far more memory than the free hosting plan has.
+    register. Chords and song structure are disabled on this deployment —
+    they need far more memory than the free hosting plan has.
   </p>
 
   <a class="back" href="{{ url_for('index') }}">&larr; Analyse another file</a>

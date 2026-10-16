@@ -2,7 +2,7 @@
 {% block title %}Audio Analyser{% endblock %}
 {% block content %}
   <h1>Audio Analyser</h1>
-  <p class="subtitle">Which layers play, and when they enter and leave.</p>
+  <p class="subtitle">Tempo, key, and which layers play — when they enter and leave.</p>
 
   <div class="card">
     <form action="{{ url_for('analyze') }}" method="post" enctype="multipart/form-data" id="analyse-form">
@@ -104,8 +104,8 @@
   <p class="note">
     Layers are measured from the signal — frequency register plus whether the
     sound sustains or arrives as sharp attacks — so bass, drums and sustained
-    harmony are separated without guessing instrument names. Key, tempo, mode,
-    chords and song structure are disabled on this deployment to fit a
-    memory-limited free hosting plan.
+    harmony are separated without guessing instrument names. Tempo, key and
+    mode are measured too. Chords and song structure are disabled on this
+    deployment to fit a memory-limited free hosting plan.
   </p>
 {% endblock %}
